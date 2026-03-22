@@ -32,6 +32,7 @@ import type * as exports from "../exports.js";
 import type * as library from "../library.js";
 import type * as libraryCategories from "../libraryCategories.js";
 import type * as materials from "../materials.js";
+import type * as mcp from "../mcp.js";
 import type * as mentorAssignments from "../mentorAssignments.js";
 import type * as mentorNotes from "../mentorNotes.js";
 import type * as notifications from "../notifications.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   library: typeof library;
   libraryCategories: typeof libraryCategories;
   materials: typeof materials;
+  mcp: typeof mcp;
   mentorAssignments: typeof mentorAssignments;
   mentorNotes: typeof mentorNotes;
   notifications: typeof notifications;

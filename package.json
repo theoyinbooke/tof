@@ -7,10 +7,14 @@
     "dev:turbo": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mcp:local": "tsx mcp/server.ts",
+    "mcp:check": "tsx mcp/server.ts --self-check"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.6",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@next/env": "^16.2.1",
     "@react-email/components": "^1.0.10",
     "clsx": "^2.1.1",
     "convex": "^1.34.0",
@@ -20,7 +24,9 @@
     "react-email": "^5.2.10",
     "recharts": "^3.8.0",
     "resend": "^6.9.4",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

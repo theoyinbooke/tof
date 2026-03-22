@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tof": {
+      "command": "./node_modules/.bin/tsx",
+      "args": ["mcp/server.ts"],
+      "env": {}
+    }
+  }
+}
