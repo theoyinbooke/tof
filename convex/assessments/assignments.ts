@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "../_generated/server";
 import { requireAdmin, requireUser, requireOwnerOrAdmin } from "../authHelpers";
+import { notifyWithEmail, formatDate } from "../emailHelpers";
 
 export const assign = mutation({
   args: {
@@ -16,7 +17,7 @@ export const assign = mutation({
       throw new Error("Can only assign published templates.");
     }
 
-    return await ctx.db.insert("assessmentAssignments", {
+    const assignmentId = await ctx.db.insert("assessmentAssignments", {
       templateId: args.templateId,
       userId: args.userId,
       sessionId: args.sessionId,
@@ -26,6 +27,23 @@ export const assign = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Email beneficiary about assignment
+    await notifyWithEmail(ctx, {
+      userId: args.userId,
+      type: "assessment_assigned",
+      title: `Assessment assigned: ${template.name}`,
+      body: `You have been assigned the assessment "${template.name}".`,
+      eventKey: `assessment_assigned:${assignmentId}`,
+      linkUrl: `/beneficiary/assessments/${assignmentId}`,
+      emailType: "assessment-assigned",
+      templateData: {
+        assessmentName: template.name,
+        dueDate: args.dueDate ? formatDate(args.dueDate) : "No due date",
+      },
+    });
+
+    return assignmentId;
   },
 });
 
@@ -170,6 +188,23 @@ export const markOverdue = internalMutation({
     for (const a of pending) {
       if (a.dueDate && a.dueDate < now) {
         await ctx.db.patch(a._id, { status: "overdue", updatedAt: now });
+
+        // Send overdue email notification
+        const template = await ctx.db.get(a.templateId);
+        const { notifyWithEmail: notify } = await import("../emailHelpers");
+        await notify(ctx, {
+          userId: a.userId,
+          type: "assessment_overdue",
+          title: `Assessment overdue: ${template?.name || "Assessment"}`,
+          body: `Your assessment "${template?.name || "Assessment"}" is now overdue.`,
+          eventKey: `assessment_overdue:${a._id}`,
+          linkUrl: `/beneficiary/assessments/${a._id}`,
+          emailType: "assessment-overdue",
+          templateData: {
+            assessmentName: template?.name || "Assessment",
+          },
+        });
+
         count++;
       }
     }

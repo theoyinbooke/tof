@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireUser, requireAdmin } from "./authHelpers";
+import { notifyWithEmail, notifyAdminsWithEmail, formatNaira } from "./emailHelpers";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   draft: ["submitted"],
@@ -46,7 +47,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    return await ctx.db.insert("supportRequests", {
+    const requestId = await ctx.db.insert("supportRequests", {
       beneficiaryUserId: user._id,
       title: args.title,
       description: args.description,
@@ -56,6 +57,42 @@ export const create = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Email beneficiary confirmation
+    await notifyWithEmail(ctx, {
+      userId: user._id,
+      type: "support_request_received",
+      title: "Support request submitted",
+      body: `Your request "${args.title}" has been submitted.`,
+      eventKey: `support_received:${requestId}`,
+      linkUrl: `/beneficiary/support/${requestId}`,
+      emailType: "support-request-received",
+      templateData: {
+        recipientName: user.name,
+        requestTitle: args.title,
+        requestCategory: args.category,
+        requestAmount: args.amountRequested ? formatNaira(args.amountRequested) : "",
+      },
+    });
+
+    // Email admins about new request
+    await notifyAdminsWithEmail(ctx, {
+      type: "support_request_admin",
+      title: `New support request from ${user.name}`,
+      body: `${user.name} submitted a support request: "${args.title}".`,
+      eventKeyPrefix: `support_admin:${requestId}`,
+      linkUrl: `/admin/support/${requestId}`,
+      emailType: "support-request-admin",
+      templateData: {
+        beneficiaryName: user.name,
+        requestTitle: args.title,
+        requestCategory: args.category,
+        requestAmount: args.amountRequested ? formatNaira(args.amountRequested) : "",
+        ctaUrl: `/admin/support/${requestId}`,
+      },
+    });
+
+    return requestId;
   },
 });
 
@@ -104,6 +141,69 @@ export const transition = mutation({
       status: args.toStatus,
       updatedAt: Date.now(),
     });
+
+    // ─── Email notifications for status transitions ───
+    const beneficiary = await ctx.db.get(request.beneficiaryUserId);
+    const beneficiaryName = beneficiary?.name || "Beneficiary";
+
+    const emailMap: Record<string, { emailType: string; title: string; body: string }> = {
+      under_review: {
+        emailType: "request-under-review",
+        title: `Under review: ${request.title}`,
+        body: `Your request "${request.title}" is now being reviewed.`,
+      },
+      approved: {
+        emailType: "request-approved",
+        title: `Approved: ${request.title}`,
+        body: `Your request "${request.title}" has been approved.`,
+      },
+      declined: {
+        emailType: "request-declined",
+        title: `Declined: ${request.title}`,
+        body: `Your request "${request.title}" has been declined.`,
+      },
+      evidence_requested: {
+        emailType: "evidence-requested",
+        title: "Evidence required",
+        body: `Please submit evidence for your disbursement.`,
+      },
+    };
+
+    const emailConfig = emailMap[args.toStatus];
+    if (emailConfig && request.beneficiaryUserId !== user._id) {
+      await notifyWithEmail(ctx, {
+        userId: request.beneficiaryUserId,
+        type: `support_${args.toStatus}`,
+        title: emailConfig.title,
+        body: emailConfig.body,
+        eventKey: `support_${args.toStatus}:${args.requestId}:${Date.now()}`,
+        linkUrl: `/beneficiary/support/${args.requestId}`,
+        emailType: emailConfig.emailType,
+        templateData: {
+          recipientName: beneficiaryName,
+          requestTitle: request.title,
+          requestCategory: request.category,
+          requestAmount: request.amountRequested ? formatNaira(request.amountRequested) : "",
+          declineReason: args.note || "",
+        },
+      });
+    }
+
+    // Notify admins when beneficiary submits evidence
+    if (args.toStatus === "evidence_submitted" && user.role === "beneficiary") {
+      await notifyAdminsWithEmail(ctx, {
+        type: "evidence_submitted_admin",
+        title: `Evidence submitted by ${beneficiaryName}`,
+        body: `${beneficiaryName} submitted evidence for their disbursement.`,
+        eventKeyPrefix: `evidence_submitted:${args.requestId}:${Date.now()}`,
+        linkUrl: `/admin/support/${args.requestId}`,
+        emailType: "evidence-submitted",
+        templateData: {
+          beneficiaryName,
+          ctaUrl: `/admin/support/${args.requestId}`,
+        },
+      });
+    }
 
     return args.requestId;
   },

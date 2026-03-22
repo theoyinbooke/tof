@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireUser } from "./authHelpers";
+import { notifyWithEmail } from "./emailHelpers";
 
 export const assign = mutation({
   args: {
@@ -25,12 +26,44 @@ export const assign = mutation({
       });
     }
 
-    return await ctx.db.insert("mentorAssignments", {
+    const assignmentId = await ctx.db.insert("mentorAssignments", {
       mentorId: args.mentorId,
       beneficiaryUserId: args.beneficiaryUserId,
       isActive: true,
       assignedAt: Date.now(),
     });
+
+    // Look up names for email templates
+    const mentor = await ctx.db.get(args.mentorId);
+    const beneficiary = await ctx.db.get(args.beneficiaryUserId);
+    const mentorName = mentor?.name || "your mentor";
+    const beneficiaryName = beneficiary?.name || "a new mentee";
+
+    // Email the beneficiary
+    await notifyWithEmail(ctx, {
+      userId: args.beneficiaryUserId,
+      type: "mentor_assigned",
+      title: `You've been paired with ${mentorName}`,
+      body: `${mentorName} has been assigned as your mentor.`,
+      eventKey: `mentor_assigned:${assignmentId}`,
+      linkUrl: "/beneficiary",
+      emailType: "mentor-assigned",
+      templateData: { mentorName },
+    });
+
+    // Email the mentor
+    await notifyWithEmail(ctx, {
+      userId: args.mentorId,
+      type: "mentee_assigned",
+      title: `New mentee assigned: ${beneficiaryName}`,
+      body: `${beneficiaryName} has been assigned to you as a mentee.`,
+      eventKey: `mentee_assigned:${assignmentId}`,
+      linkUrl: "/mentor/mentees",
+      emailType: "mentee-assigned",
+      templateData: { menteeName: beneficiaryName },
+    });
+
+    return assignmentId;
   },
 });
 

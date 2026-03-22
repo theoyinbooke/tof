@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { logAuditEvent } from "./auditLogs";
+import { notifyWithEmail } from "./emailHelpers";
 
 export const getOrCreateUser = mutation({
   args: {},
@@ -43,6 +44,22 @@ export const getOrCreateUser = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Send welcome email
+    if (identity.email) {
+      await notifyWithEmail(ctx, {
+        userId,
+        type: "welcome",
+        title: "Welcome to TheOyinbooke Foundation",
+        body: "Welcome! Get started by completing your profile.",
+        eventKey: `welcome:${userId}`,
+        linkUrl: "/dashboard",
+        emailType: "welcome",
+        templateData: {
+          recipientName: identity.name || "there",
+        },
+      });
+    }
 
     return userId;
   },
@@ -163,6 +180,21 @@ export const updateUserRole = mutation({
       details: `Changed role from "${target.role}" to "${args.role}"`,
     });
 
+    // Send role assigned email
+    await notifyWithEmail(ctx, {
+      userId: args.userId,
+      type: "role_assigned",
+      title: `Your role has been updated to ${args.role}`,
+      body: `Your role has been changed from ${target.role} to ${args.role}.`,
+      eventKey: `role_assigned:${args.userId}:${Date.now()}`,
+      linkUrl: "/dashboard",
+      emailType: "role-assigned",
+      templateData: {
+        recipientName: target.name,
+        newRole: args.role,
+      },
+    });
+
     return args.userId;
   },
 });
@@ -189,6 +221,9 @@ export const toggleUserActive = mutation({
       throw new Error("Only admins can activate/deactivate users.");
     }
 
+    const target = await ctx.db.get(args.userId);
+    if (!target) throw new Error("User not found.");
+
     await ctx.db.patch(args.userId, {
       isActive: args.isActive,
       updatedAt: Date.now(),
@@ -200,6 +235,21 @@ export const toggleUserActive = mutation({
       resource: "users",
       resourceId: args.userId,
     });
+
+    // Send deactivation email
+    if (!args.isActive) {
+      await notifyWithEmail(ctx, {
+        userId: args.userId,
+        type: "account_deactivated",
+        title: "Your account has been deactivated",
+        body: "Your account has been deactivated by an administrator.",
+        eventKey: `account_deactivated:${args.userId}:${Date.now()}`,
+        emailType: "account-deactivated",
+        templateData: {
+          recipientName: target.name,
+        },
+      });
+    }
 
     return args.userId;
   },

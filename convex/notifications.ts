@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { requireUser, requireAdmin } from "./authHelpers";
+import { scheduleEmail, formatDate, formatNaira } from "./emailHelpers";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 
@@ -183,13 +184,25 @@ export const sendSessionReminders = internalMutation({
 
       for (const enrollment of enrollments) {
         const eventKey = `session_reminder:${session._id}:${enrollment.userId}`;
-        await createNotification(ctx, {
+        const notificationId = await createNotification(ctx, {
           userId: enrollment.userId,
           type: "session_reminder",
           title: "Upcoming Session",
           body: `Session "${session.title}" is scheduled for tomorrow.`,
           eventKey,
           linkUrl: "/beneficiary/sessions",
+        });
+
+        // Schedule email
+        await scheduleEmail(ctx, {
+          notificationId,
+          userId: enrollment.userId,
+          emailType: "session-reminder",
+          eventKey,
+          templateData: {
+            sessionTitle: session.title,
+            sessionDate: session.scheduledDate ? formatDate(session.scheduledDate) : "tomorrow",
+          },
         });
       }
     }
@@ -221,13 +234,29 @@ export const sendEvidenceOverdueNotifications = internalMutation({
       if (!request) continue;
 
       const eventKey = `evidence_overdue:${disbursement._id}`;
-      await createNotification(ctx, {
+      const beneficiary = await ctx.db.get(request.beneficiaryUserId);
+      const beneficiaryName = beneficiary?.name || "Beneficiary";
+      const amount = formatNaira(disbursement.amount);
+
+      const notifId = await createNotification(ctx, {
         userId: request.beneficiaryUserId,
         type: "evidence_overdue",
         title: "Evidence Overdue",
-        body: `Evidence for your disbursement of ₦${disbursement.amount.toLocaleString()} is overdue.`,
+        body: `Evidence for your disbursement of \u20A6${amount} is overdue.`,
         eventKey,
         linkUrl: `/beneficiary/support/${request._id}`,
+      });
+
+      // Schedule email to beneficiary
+      await scheduleEmail(ctx, {
+        notificationId: notifId,
+        userId: request.beneficiaryUserId,
+        emailType: "evidence-overdue",
+        eventKey,
+        templateData: {
+          disbursementAmount: amount,
+          isAdmin: "false",
+        },
       });
 
       // Notify admins
@@ -238,13 +267,26 @@ export const sendEvidenceOverdueNotifications = internalMutation({
 
       for (const admin of admins) {
         const adminEventKey = `evidence_overdue_admin:${disbursement._id}:${admin._id}`;
-        await createNotification(ctx, {
+        const adminNotifId = await createNotification(ctx, {
           userId: admin._id,
           type: "evidence_overdue_admin",
           title: "Evidence Overdue",
-          body: `Evidence overdue for disbursement ₦${disbursement.amount.toLocaleString()}.`,
+          body: `Evidence overdue for disbursement \u20A6${amount}.`,
           eventKey: adminEventKey,
           linkUrl: `/admin/support/${request._id}`,
+        });
+
+        await scheduleEmail(ctx, {
+          notificationId: adminNotifId,
+          userId: admin._id,
+          emailType: "evidence-overdue",
+          eventKey: adminEventKey,
+          templateData: {
+            disbursementAmount: amount,
+            beneficiaryName,
+            isAdmin: "true",
+            ctaUrl: `/admin/support/${request._id}`,
+          },
         });
       }
     }

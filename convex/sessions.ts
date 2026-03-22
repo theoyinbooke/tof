@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAdminOrFacilitator, requireUser } from "./authHelpers";
+import { notifyWithEmail, formatDate } from "./emailHelpers";
 
 const statusValidator = v.union(
   v.literal("draft"),
@@ -72,6 +73,63 @@ export const update = mutation({
       if (val !== undefined) patch[key] = val;
     }
     await ctx.db.patch(sessionId, patch);
+
+    // If session is being cancelled, notify enrolled beneficiaries
+    if (args.status === "cancelled" && session.status !== "cancelled") {
+      const enrollments = await ctx.db
+        .query("sessionEnrollments")
+        .withIndex("by_sessionId_and_status", (q) =>
+          q.eq("sessionId", sessionId).eq("status", "enrolled"),
+        )
+        .take(200);
+
+      for (const enrollment of enrollments) {
+        await notifyWithEmail(ctx, {
+          userId: enrollment.userId,
+          type: "session_cancelled",
+          title: `Session cancelled: ${session.title}`,
+          body: `The session "${session.title}" has been cancelled.`,
+          eventKey: `session_cancelled:${sessionId}:${enrollment.userId}`,
+          linkUrl: "/beneficiary/sessions",
+          emailType: "session-cancelled",
+          templateData: { sessionTitle: session.title },
+        });
+      }
+    }
+
+    // If session is being published (draft → upcoming), notify cohort members
+    if (
+      args.status === "upcoming" &&
+      session.status === "draft" &&
+      session.cohortId
+    ) {
+      const members = await ctx.db
+        .query("cohortMemberships")
+        .withIndex("by_cohortId_and_status", (q) =>
+          q.eq("cohortId", session.cohortId!).eq("status", "active"),
+        )
+        .take(200);
+
+      for (const member of members) {
+        await notifyWithEmail(ctx, {
+          userId: member.userId,
+          type: "session_scheduled",
+          title: `New session: ${session.title}`,
+          body: `A new session "${session.title}" has been scheduled.`,
+          eventKey: `session_scheduled:${sessionId}:${member.userId}`,
+          linkUrl: "/beneficiary/sessions",
+          emailType: "session-scheduled",
+          templateData: {
+            sessionTitle: args.title || session.title,
+            sessionDate: (args.scheduledDate || session.scheduledDate)
+              ? formatDate(args.scheduledDate || session.scheduledDate!)
+              : "TBD",
+            sessionPillar: args.pillar || session.pillar,
+          },
+        });
+      }
+    }
+
     return sessionId;
   },
 });

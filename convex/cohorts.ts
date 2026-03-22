@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireUser } from "./authHelpers";
+import { notifyWithEmail } from "./emailHelpers";
 
 export const list = query({
   args: {},
@@ -97,13 +98,30 @@ export const addMember = mutation({
       throw new Error("User is already a member of this cohort.");
     }
 
-    return await ctx.db.insert("cohortMemberships", {
+    const membershipId = await ctx.db.insert("cohortMemberships", {
       cohortId: args.cohortId,
       userId: args.userId,
       status: args.status || "active",
       joinedAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Email beneficiary about cohort enrollment
+    const cohort = await ctx.db.get(args.cohortId);
+    const cohortName = cohort?.name || "a cohort";
+
+    await notifyWithEmail(ctx, {
+      userId: args.userId,
+      type: "cohort_enrollment",
+      title: `Enrolled in ${cohortName}`,
+      body: `You have been enrolled in ${cohortName}.`,
+      eventKey: `cohort_enrollment:${membershipId}`,
+      linkUrl: "/beneficiary/sessions",
+      emailType: "cohort-enrollment",
+      templateData: { cohortName },
+    });
+
+    return membershipId;
   },
 });
 

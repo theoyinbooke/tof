@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireUser } from "./authHelpers";
+import { notifyWithEmail } from "./emailHelpers";
 
 const typeValidator = v.union(
   v.literal("pdf"),
@@ -55,12 +56,42 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx);
-    return await ctx.db.insert("materials", {
+    const materialId = await ctx.db.insert("materials", {
       ...args,
       createdBy: user._id,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Notify enrolled users if the material is linked to a session
+    if (args.sessionId) {
+      const session = await ctx.db.get(args.sessionId);
+      const enrollments = await ctx.db
+        .query("sessionEnrollments")
+        .withIndex("by_sessionId_and_status", (q) =>
+          q.eq("sessionId", args.sessionId!).eq("status", "enrolled"),
+        )
+        .take(200);
+
+      for (const enrollment of enrollments) {
+        await notifyWithEmail(ctx, {
+          userId: enrollment.userId,
+          type: "new_material",
+          title: `New material: ${args.title}`,
+          body: `A new ${args.type} has been added${session ? ` to "${session.title}"` : ""}.`,
+          eventKey: `new_material:${materialId}:${enrollment.userId}`,
+          linkUrl: "/library",
+          emailType: "new-material",
+          templateData: {
+            materialTitle: args.title,
+            materialType: args.type,
+            sessionTitle: session?.title || "",
+          },
+        });
+      }
+    }
+
+    return materialId;
   },
 });
 

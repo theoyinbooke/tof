@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAdminOrMentor, requireUser } from "./authHelpers";
 import { logAuditEvent } from "./auditLogs";
+import { notifyWithEmail, notifyAdminsWithEmail } from "./emailHelpers";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 
@@ -40,7 +41,7 @@ export async function createSafeguardingAction(
     }
   }
 
-  return await ctx.db.insert("safeguardingActions", {
+  const actionId = await ctx.db.insert("safeguardingActions", {
     scoreId: args.scoreId,
     userId: args.userId,
     assignedTo,
@@ -49,6 +50,48 @@ export async function createSafeguardingAction(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+
+  // Look up names for emails
+  const beneficiary = await ctx.db.get(args.userId);
+  const beneficiaryName = beneficiary?.name || "a beneficiary";
+  const score = await ctx.db.get(args.scoreId);
+  const template = score ? await ctx.db.get(score.templateId) : null;
+  const assessmentName = template?.name || "an assessment";
+
+  if (args.flagBehavior === "mentor_notify" && assignedTo) {
+    // Email mentor
+    await notifyWithEmail(ctx, {
+      userId: assignedTo,
+      type: "safeguarding_alert_mentor",
+      title: `Safeguarding alert for ${beneficiaryName}`,
+      body: `A safeguarding concern has been flagged for your mentee ${beneficiaryName}.`,
+      eventKey: `safeguarding_mentor:${actionId}`,
+      linkUrl: "/mentor/mentees",
+      emailType: "safeguarding-alert-mentor",
+      templateData: {
+        beneficiaryName,
+        assessmentName,
+      },
+    });
+  }
+
+  if (args.flagBehavior === "admin_review") {
+    // Email all admins
+    await notifyAdminsWithEmail(ctx, {
+      type: "safeguarding_alert_admin",
+      title: `[URGENT] Safeguarding review: ${beneficiaryName}`,
+      body: `A safeguarding concern requiring admin review has been flagged for ${beneficiaryName}.`,
+      eventKeyPrefix: `safeguarding_admin:${actionId}`,
+      linkUrl: "/admin/safeguarding",
+      emailType: "safeguarding-alert-admin",
+      templateData: {
+        beneficiaryName,
+        assessmentName,
+      },
+    });
+  }
+
+  return actionId;
 }
 
 export const listAll = query({
@@ -184,6 +227,26 @@ export const updateAction = mutation({
         resourceId: args.actionId,
         details: args.resolutionNote,
       });
+
+      // Notify assigned mentor that the action has been resolved
+      if (action.assignedTo) {
+        const beneficiary = await ctx.db.get(action.userId);
+        const beneficiaryName = beneficiary?.name || "a beneficiary";
+
+        await notifyWithEmail(ctx, {
+          userId: action.assignedTo,
+          type: "safeguarding_resolved",
+          title: `Safeguarding resolved for ${beneficiaryName}`,
+          body: `The safeguarding action for ${beneficiaryName} has been ${args.status}.`,
+          eventKey: `safeguarding_resolved:${args.actionId}`,
+          linkUrl: "/mentor/mentees",
+          emailType: "safeguarding-resolved",
+          templateData: {
+            beneficiaryName,
+            resolutionNote: args.resolutionNote || `Action ${args.status} by admin.`,
+          },
+        });
+      }
     }
 
     return args.actionId;

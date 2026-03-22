@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireUser } from "./authHelpers";
+import { notifyWithEmail, formatNaira, formatDate } from "./emailHelpers";
 
 export const create = mutation({
   args: {
@@ -46,6 +47,22 @@ export const create = mutation({
     await ctx.db.patch(args.requestId, {
       status: "disbursed",
       updatedAt: Date.now(),
+    });
+
+    // Email beneficiary about disbursement
+    await notifyWithEmail(ctx, {
+      userId: request.beneficiaryUserId,
+      type: "disbursement_created",
+      title: `Disbursement of \u20A6${formatNaira(args.amount)} created`,
+      body: `A disbursement of \u20A6${formatNaira(args.amount)} has been created for your request.`,
+      eventKey: `disbursement_created:${disbursementId}`,
+      linkUrl: `/beneficiary/support/${args.requestId}`,
+      emailType: "disbursement-created",
+      templateData: {
+        disbursementAmount: formatNaira(args.amount),
+        bankReference: args.bankReference || "N/A",
+        evidenceDueDate: args.evidenceDueDate ? formatDate(args.evidenceDueDate) : "N/A",
+      },
     });
 
     return disbursementId;
@@ -137,6 +154,20 @@ export const verifyEvidence = mutation({
       await ctx.db.patch(request._id, {
         status: "verified",
         updatedAt: Date.now(),
+      });
+
+      // Email beneficiary about verification
+      await notifyWithEmail(ctx, {
+        userId: request.beneficiaryUserId,
+        type: "evidence_verified",
+        title: "Your evidence has been verified",
+        body: `The evidence for your disbursement of \u20A6${formatNaira(disbursement.amount)} has been verified.`,
+        eventKey: `evidence_verified:${args.disbursementId}`,
+        linkUrl: `/beneficiary/support/${request._id}`,
+        emailType: "evidence-verified",
+        templateData: {
+          disbursementAmount: formatNaira(disbursement.amount),
+        },
       });
     }
 

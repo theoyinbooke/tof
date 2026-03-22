@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { requireUser } from "../authHelpers";
 import { createSafeguardingAction } from "../safeguarding";
+import { notifyWithEmail } from "../emailHelpers";
 
 export const saveProgress = mutation({
   args: {
@@ -103,6 +104,21 @@ export const submit = mutation({
       flagBehavior: scoreResult.flagBehavior,
       interpretation: scoreResult.interpretation,
       scoredAt: Date.now(),
+    });
+
+    // Send assessment results email
+    await notifyWithEmail(ctx, {
+      userId: user._id,
+      type: "assessment_results",
+      title: `Results ready: ${template.name}`,
+      body: `Your assessment results for "${template.name}" are now available.`,
+      eventKey: `assessment_results:${scoreId}`,
+      linkUrl: `/beneficiary/assessments/${args.assignmentId}`,
+      emailType: "assessment-results",
+      templateData: {
+        assessmentName: template.name,
+        interpretation: scoreResult.interpretation || "",
+      },
     });
 
     // Auto-create safeguarding action if flagged
