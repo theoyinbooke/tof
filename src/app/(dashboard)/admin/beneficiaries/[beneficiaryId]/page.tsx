@@ -164,12 +164,13 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
                       <p className="text-sm font-medium text-[#171717]">{code} — {entries[0]?.name}</p>
                       <div className="mt-2 flex items-end gap-1">
                         {entries.map((e, i) => {
-                          const maxScore = Math.max(...entries.map((x) => x.totalScore));
-                          const height = maxScore > 0 ? Math.max(8, (e.totalScore / maxScore) * 48) : 8;
+                          const maxScore = Math.max(...entries.map((x) => x.totalScore ?? 0));
+                          const score = e.totalScore ?? 0;
+                          const height = maxScore > 0 ? Math.max(8, (score / maxScore) * 48) : 8;
                           return (
                             <div key={i} className="group relative flex flex-col items-center">
-                              <div className="rounded-sm bg-[#00D632]" style={{ width: 24, height }} title={`${e.totalScore} — ${new Date(e.scoredAt).toLocaleDateString()}`} />
-                              <p className="mt-1 text-[8px] text-[#D4D4D4]">{e.totalScore}</p>
+                              <div className="rounded-sm bg-[#00D632]" style={{ width: 24, height }} title={`${score} — ${new Date(e.scoredAt).toLocaleDateString()}`} />
+                              <p className="mt-1 text-[8px] text-[#D4D4D4]">{score}</p>
                             </div>
                           );
                         })}

@@ -3,6 +3,12 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useState, useEffect } from "react";
+import { Select, type SelectOption } from "@/components/ui/select";
+import {
+  getNigeriaLgaOptions,
+  NIGERIAN_STATE_OPTIONS,
+  NIGERIA_STATE_TO_LGAS,
+} from "@/lib/nigeria-locations";
 
 export default function ProfilePage() {
   const user = useQuery(api.users.currentUser);
@@ -58,6 +64,11 @@ export default function ProfilePage() {
       });
     }
   }, [profile]);
+
+  const hasKnownState = Boolean(NIGERIA_STATE_TO_LGAS[personal.stateOfOrigin]);
+  const lgaOptions = hasKnownState
+    ? getNigeriaLgaOptions(personal.stateOfOrigin)
+    : [];
 
   if (user === undefined || profile === undefined) {
     return (
@@ -186,8 +197,37 @@ export default function ProfilePage() {
             <FormField label="Phone" value={personal.phone} onChange={(v) => setPersonal({ ...personal, phone: v })} />
             <FormField label="Address" value={personal.address} onChange={(v) => setPersonal({ ...personal, address: v })} />
             <div className="grid gap-5 sm:grid-cols-2">
-              <FormField label="State of Origin" value={personal.stateOfOrigin} onChange={(v) => setPersonal({ ...personal, stateOfOrigin: v })} />
-              <FormField label="LGA" value={personal.lga} onChange={(v) => setPersonal({ ...personal, lga: v })} />
+              <FormSelectField
+                label="State of Origin"
+                value={personal.stateOfOrigin}
+                onChange={(stateOfOrigin) =>
+                  setPersonal({
+                    ...personal,
+                    stateOfOrigin,
+                    lga: stateOfOrigin === personal.stateOfOrigin ? personal.lga : "",
+                  })
+                }
+                options={NIGERIAN_STATE_OPTIONS}
+                placeholder="Search and select a state"
+                searchPlaceholder="Search Nigerian states"
+                emptyMessage="No state matches your search."
+                searchable
+              />
+              <FormSelectField
+                label="LGA"
+                value={personal.lga}
+                onChange={(lga) => setPersonal({ ...personal, lga })}
+                options={lgaOptions}
+                placeholder={
+                  hasKnownState
+                    ? "Search and select an LGA"
+                    : "Select a state first"
+                }
+                searchPlaceholder="Search local governments"
+                emptyMessage="No local government matches your search."
+                disabled={!hasKnownState}
+                searchable
+              />
             </div>
             <div className="flex justify-end pt-2">
               <button
@@ -247,6 +287,44 @@ function FormField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="h-11 w-full rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm text-[#171717] outline-none transition-colors focus:border-[#171717] placeholder:text-[#D4D4D4]"
+      />
+    </div>
+  );
+}
+
+function FormSelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  searchPlaceholder,
+  emptyMessage,
+  disabled = false,
+  searchable = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder: string;
+  searchPlaceholder: string;
+  emptyMessage: string;
+  disabled?: boolean;
+  searchable?: boolean;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm text-[#262626]">{label}</label>
+      <Select
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+        searchPlaceholder={searchPlaceholder}
+        emptyMessage={emptyMessage}
+        disabled={disabled}
+        searchable={searchable}
       />
     </div>
   );

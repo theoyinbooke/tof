@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useState } from "react";
 import type { Id } from "../../../../../convex/_generated/dataModel";
+import { Select } from "@/components/ui/select";
 
 type Visibility = "mentor_only" | "mentor_and_admin";
 
@@ -60,25 +61,29 @@ export default function MentorNotesPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm text-[#262626]">Mentee</label>
-              <select value={form.beneficiaryUserId}
-                onChange={(e) => setForm({ ...form, beneficiaryUserId: e.target.value })}
-                className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]">
-                <option value="">Select mentee</option>
-                {mentees.map((m) => (
-                  <option key={m.assignment._id} value={m.beneficiary?._id || ""}>
-                    {m.beneficiary?.name || "Unknown"}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={form.beneficiaryUserId}
+                onChange={(val) => setForm({ ...form, beneficiaryUserId: val })}
+                placeholder="Select mentee"
+                options={[
+                  { label: "Select mentee", value: "" },
+                  ...mentees.map((m) => ({
+                    label: m.beneficiary?.name || "Unknown",
+                    value: m.beneficiary?._id || "",
+                  })),
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-sm text-[#262626]">Visibility</label>
-              <select value={form.visibility}
-                onChange={(e) => setForm({ ...form, visibility: e.target.value as Visibility })}
-                className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]">
-                <option value="mentor_and_admin">Mentor & Admin</option>
-                <option value="mentor_only">Mentor Only</option>
-              </select>
+              <Select
+                value={form.visibility}
+                onChange={(val) => setForm({ ...form, visibility: val as Visibility })}
+                options={[
+                  { label: "Mentor & Admin", value: "mentor_and_admin" },
+                  { label: "Mentor Only", value: "mentor_only" },
+                ]}
+              />
             </div>
           </div>
           <div className="mt-4">

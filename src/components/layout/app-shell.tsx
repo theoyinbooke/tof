@@ -9,7 +9,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#F7F7F7]">
+    <div className="flex h-dvh bg-[#F7F7F7]">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <Sidebar />

@@ -3,6 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useState, useRef } from "react";
+import { Select } from "@/components/ui/select";
 
 type Category = "identity" | "education" | "support_evidence" | "other";
 
@@ -100,15 +101,11 @@ export default function DocumentsPage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm text-[#262626]">Category</label>
-            <select
+            <Select
               value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
-              className="h-11 w-full rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#171717]"
-            >
-              {CATEGORY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              onChange={(val) => setCategory(val as Category)}
+              options={CATEGORY_OPTIONS}
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-sm text-[#262626]">Description</label>

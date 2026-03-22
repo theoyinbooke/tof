@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import Link from "next/link";
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
 
 type Category = "tuition" | "books" | "transport" | "medical" | "accommodation" | "other";
 
@@ -72,9 +73,11 @@ export default function BeneficiarySupportPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm text-[#262626]">Category</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })} className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]">
-                  {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
+                <Select
+                  value={form.category}
+                  onChange={(val) => setForm({ ...form, category: val as Category })}
+                  options={CATEGORIES}
+                />
               </div>
               <div><label className="mb-1.5 block text-sm text-[#262626]">Amount (₦)</label><input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]" /></div>
             </div>

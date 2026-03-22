@@ -55,6 +55,8 @@ The platform was built in **15 phases** following a detailed implementation plan
 | Styling | Tailwind CSS | ^4 | Utility-first CSS |
 | Backend | Convex | ^1.34.0 | Real-time backend (database, functions, storage, cron jobs) |
 | Authentication | Clerk | ^7.0.6 (@clerk/nextjs) | User sign-up/sign-in, JWT-based auth |
+| Email | Resend | ^6.9.4 | Transactional email delivery via Resend API |
+| Email Templates | react-email + @react-email/components | ^5.2.10 / ^1.0.10 | React-based email template rendering |
 | Class Utilities | clsx + tailwind-merge | ^2.1.1 / ^3.5.0 | Conditional class merging |
 
 **Key architectural choices:**
@@ -98,6 +100,10 @@ The platform was built in **15 phases** following a detailed implementation plan
 │  │ (Reminders │  │ Subscriptions│  │ (22+ Tables)  │  │
 │  │  Overdue)  │  │              │  │               │  │
 │  └────────────┘  └──────────────┘  └───────────────┘  │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ Email System (Resend API)                        │   │
+│  │ 29 templates · Branded HTML layout · Idempotent  │   │
+│  └─────────────────────────────────────────────────┘   │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -149,6 +155,11 @@ tof/
 │   ├── disbursements.ts             # Financial disbursements
 │   ├── safeguarding.ts              # Safeguarding actions
 │   ├── notifications.ts             # Notifications + cron handlers
+│   ├── email.ts                     # Resend API send/batch actions + delivery tracking
+│   ├── emailHelpers.ts              # scheduleEmail, notifyWithEmail, notifyAdminsWithEmail
+│   ├── emails/
+│   │   ├── templates.ts             # 29 email templates (welcome, alerts, reminders, etc.)
+│   │   └── layout.ts               # Branded HTML email layout with TOF styling
 │   ├── materials.ts                  # Learning materials
 │   ├── analytics.ts                  # Development profile aggregation
 │   ├── exports.ts                    # Report data export
@@ -158,8 +169,10 @@ tof/
 │       ├── templates.ts             # Assessment template CRUD
 │       ├── assignments.ts           # Assessment assignment logic
 │       ├── responses.ts             # Response submission + scoring trigger
-│       └── scoring.ts              # Score retrieval + flagged score listing
+│       ├── scoring.ts              # Score retrieval + flagged score listing
+│       └── seed.ts                 # 16 instrument seed data (placeholder items)
 ├── IMPLEMENTATION_PLAN.md           # 15-phase feature delivery plan
+├── SESSIONS_AND_ASSESSMENTS_REFERENCE.md  # Authoritative instrument specifications
 ├── Design-System.md                 # Visual design specification
 ├── CLAUDE.md                        # Agent coding instructions
 └── AGENTS.md                        # Agent guidelines
@@ -415,40 +428,59 @@ All authorization is enforced server-side in Convex functions. The following hel
 - Three visibility levels: `owner_only`, `admin_only`, `owner_and_admin`
 - Documents linkable to beneficiary profiles and support requests
 
-### 6.13 Notifications
+### 6.13 Notifications & Email
 - In-app notification creation with event-based deduplication (`eventKey`)
-- Multi-channel delivery tracking schema (in_app, email, sms)
+- Multi-channel delivery tracking (in_app, email, sms schema — in_app and email are active)
 - Read/unread status with "mark all as read"
 - Deep links to relevant pages
 - Admin can send manual notifications
 - Delivery status tracking (pending/sent/failed/skipped) with retry metadata
 
-### 6.14 Role-Specific Dashboards
+### 6.14 Email System (Resend Integration)
+- **29 email templates** across 6 categories, rendered via React Email + custom HTML layout
+- **Branded layout**: Dark header with TOF logo, network SVG visualization, green gradient divider, white content area, dark footer
+- **Two from addresses**: `send@hello.theoyinbookefoundation.com` (account/onboarding) and `updates@notify.theoyinbookefoundation.com` (operational)
+- **Idempotency**: Each email uses the notification `eventKey` as a Resend idempotency key — prevents duplicate sends
+- **Delivery tracking**: Each email creates a `notificationDeliveries` record with channel `"email"`, tracks attempt count, error messages, and delivery status
+- **Batch sending**: `sendBatch` action sends emails sequentially to respect Resend rate limits
+- **Helper functions**: `scheduleEmail()`, `notifyWithEmail()` (in-app + email in one call), `notifyAdminsWithEmail()` (broadcast to all admins)
+
+**Email template categories:**
+
+| Category | Templates | Trigger Points |
+|----------|-----------|----------------|
+| Account & Onboarding (6) | welcome, role-assigned, account-deactivated, mentor-assigned, mentee-assigned, cohort-enrollment | User creation, role changes, mentor pairing |
+| Sessions & Learning (4) | session-scheduled, session-reminder, session-cancelled, new-material | Session lifecycle, cron job (6h), material uploads |
+| Assessments (4) | assessment-assigned, assessment-due-soon, assessment-overdue, assessment-results | Assignment, cron job (6h), scoring completion |
+| Support & Finance (9) | support-request-received, support-request-admin, request-under-review, request-approved, request-declined, disbursement-created, evidence-requested, evidence-submitted, evidence-verified, evidence-overdue | Every support request state transition |
+| Safeguarding (3) | safeguarding-alert-mentor, safeguarding-alert-admin, safeguarding-resolved | Flagged scores, resolution |
+
+### 6.15 Role-Specific Dashboards
 - **Beneficiary**: Profile completion, next session, pending assessments, recent notifications, quick links
 - **Admin**: Total beneficiaries, pending support requests, upcoming sessions, assessment completion rate, disbursement summary, flagged scores, evidence overdue alerts
 - **Mentor**: Mentee list, latest assessment summaries, recent activity, notes entry/history
 - **Facilitator**: Assigned sessions, upcoming roster, attendance actions, materials entry point
 
-### 6.15 Mentorship
+### 6.16 Mentorship
 - Admin assigns mentor-beneficiary pairings
 - One active assignment per beneficiary at a time
 - Assignment history preserved when mentors change
 - Mentor notes with visibility control (`mentor_only`, `mentor_and_admin`)
 - Mentee summary view (attendance, assessment trends, support summary without bank details)
 
-### 6.16 Analytics & Development Profile
+### 6.17 Analytics & Development Profile
 - Aggregated development profile combining: user record, beneficiary profile, education records, attendance stats, support requests, assessment scores, mentor assignment, and mentor notes
 - Attendance rate calculation
 - Admin-only access to full development profiles
 
-### 6.17 Reports & Exports
+### 6.18 Reports & Exports
 - CSV export pipeline for admin-only datasets
 - PDF report pipeline for board-ready summaries
 - Report types: individual beneficiary, cohort, financial
 - Export generation logged in audit trail
 - Field redaction by report type
 
-### 6.18 Audit Logging
+### 6.19 Audit Logging
 - `logAuditEvent()` records privileged writes
 - Tracks: user, action, resource type, resource ID, details
 - Admin-only audit log querying (by user, action, or resource)
@@ -936,6 +968,34 @@ Defined in `convex/crons.ts`, these jobs run automatically:
 | `send(...)` | mutation | admin | Manual notification |
 | `listDeliveries(status?)` | query | admin | Delivery records |
 
+### Email System (`convex/email.ts`, `convex/emailHelpers.ts`, `convex/emails/`)
+
+| Function | Type | Auth | Description |
+|----------|------|------|-------------|
+| `email.send(deliveryId, to, recipientName, emailType, templateData, eventKey)` | internalAction | system | Send single email via Resend API with idempotency |
+| `email.sendBatch(emails[])` | internalAction | system | Send multiple emails sequentially (rate-limit safe) |
+| `email.updateDeliveryStatus(deliveryId, status, errorMessage?)` | internalMutation | system | Update delivery record after send attempt |
+| `scheduleEmail(notificationId, userId, emailType, eventKey, templateData?)` | helper | mutations | Create pending delivery + schedule send action |
+| `notifyWithEmail(userId, type, title, body, eventKey, emailType, templateData?)` | helper | mutations | Create in-app notification + schedule email in one call |
+| `notifyAdminsWithEmail(type, title, body, eventKeyPrefix, emailType, templateData?)` | helper | mutations | Broadcast notification + email to all active admins |
+
+**Email is triggered from these mutation files**: `users.ts` (welcome), `support.ts` (all status transitions), `disbursements.ts` (disbursement + evidence lifecycle), `mentorAssignments.ts` (assignment notifications), `materials.ts` (new material), `assessments/assignments.ts` (assignment + overdue), `assessments/responses.ts` (results available), `safeguarding.ts` (alerts + resolution).
+
+### Exports (`convex/exports.ts`)
+
+| Function | Type | Auth | Description |
+|----------|------|------|-------------|
+| `exportBeneficiaryReport(userId)` | mutation | admin | Individual beneficiary data (CSV-ready) |
+| `exportCohortReport(cohortId)` | mutation | admin | Cohort membership data (CSV-ready) |
+| `exportFinancialReport()` | mutation | admin | All disbursements, bank refs redacted |
+| `transitionToAlumni(userId, convertToMentor?)` | mutation | admin | Transition to alumni + optional mentor conversion |
+
+### Assessment Seed Data (`convex/assessments/seed.ts`)
+
+| Function | Type | Auth | Description |
+|----------|------|------|-------------|
+| `seedTemplates()` | internalMutation | system | Seed 16 psychometric instruments as draft templates |
+
 ---
 
 ## 11. Design System
@@ -1019,6 +1079,12 @@ NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard
 # Convex Backend
 NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
 CONVEX_DEPLOYMENT=dev:your-project-id
+
+# Email (Resend) — set in Convex dashboard as environment variable
+RESEND_API_KEY=re_...
+
+# Optional
+SITE_URL=https://theoyinbookefoundation.com   # Used in email template links (defaults to theoyinbookefoundation.com)
 ```
 
 ### Clerk JWT Configuration
@@ -1133,48 +1199,82 @@ Next.js 16 renamed `middleware.ts` to `proxy.ts`. The proxy runs on the Node.js 
 
 ## 17. Known Gaps & Future Work
 
-While all 15 implementation phases are marked complete in `IMPLEMENTATION_PLAN.md`, the following areas represent opportunities for enhancement or have partial implementations:
+While all 15 implementation phases are marked complete in `IMPLEMENTATION_PLAN.md`, the following areas represent opportunities for enhancement or have partial implementations.
 
-### 17.1 Email and SMS Delivery (Schema Ready, Backend Not Wired)
+### Status Summary
 
-The `notificationDeliveries` table supports `email` and `sms` channels with full status tracking (`pending`, `sent`, `failed`, `skipped`), retry counts, and error messages. However, the actual delivery backends (email provider integration like Resend, SMS provider like Twilio) are **not yet integrated**. Currently, only `in_app` delivery is functional. The schema and tracking infrastructure is ready for when email/SMS providers are connected.
-
-### 17.2 Advanced Filtering and Search
-
-Most list queries support basic filtering (by status, role, etc.), but advanced multi-field filtering, full-text search across tables, and saved filter presets are not yet implemented.
-
-### 17.3 Bulk Operations UI
-
-While `assignToSession()` handles bulk assessment assignment server-side, other bulk operations (bulk user role changes, bulk cohort membership updates, bulk export selection) don't have dedicated UI.
-
-### 17.4 PDF Report Generation
-
-The implementation plan calls for PDF report pipelines. The data aggregation queries exist (`analytics.getDevelopmentProfile`, `disbursements.financialSummary`), but the actual PDF rendering pipeline (likely using a library like `@react-pdf/renderer` or server-side HTML-to-PDF) needs verification.
-
-### 17.5 Assessment Seed Data
-
-Phase 7 calls for seeding all 16 psychometric instruments. The template creation infrastructure exists, but whether all 16 instruments have been seeded as data should be verified separately.
-
-### 17.6 Alumni Mentor Conversion
-
-Phase 13 mentions "support optional future mentor conversion" for alumni. The lifecycle status change to `alumni` is supported, and role changes are supported via `updateRole()`, but there is no dedicated UI workflow for converting an alumnus to a mentor role.
-
-### 17.7 Data Pagination
-
-Most queries use `.take(N)` with fixed limits (50-200). For tables that grow large (notifications, audit logs, disbursements), cursor-based pagination would improve performance and UX.
-
-### 17.8 Component Library
-
-The UI uses custom Tailwind components rather than a component library like shadcn/ui. While functional, a shared component library would improve consistency and reduce duplication as the UI grows. The design system document (`Design-System.md`) is comprehensive but the mapping from design tokens to actual Tailwind configuration could be tighter.
-
-### 17.9 Automated Testing
-
-No test files were found in the codebase. The implementation plan explicitly states "manual exploratory testing is intentionally left to the product owner," but automated tests (unit tests for Convex functions, integration tests for workflows, e2e tests for critical paths) would strengthen confidence for production deployment.
-
-### 17.10 Vercel CLI Version
-
-The Vercel CLI installed locally (50.32.5) is outdated. Upgrading to 50.35.0 is recommended: `npm i -g vercel@latest`.
+| Area | Status | Notes |
+|------|--------|-------|
+| Email delivery | **Complete** | Resend integration with 29 templates, delivery tracking, idempotency |
+| SMS delivery | Not started | Schema supports it, no provider integrated |
+| Alumni mentor conversion | **Complete** | `transitionToAlumni(userId, convertToMentor)` with UI on admin/reports page |
+| Assessment seed data | Partial | 16 instruments seeded with placeholder text only |
+| Advanced filtering | Not started | Basic status/role filters only |
+| Bulk operations UI | Not started | Server-side bulk exists, no dedicated UI |
+| PDF reports | Not started | CSV export only, no PDF library |
+| Data pagination | Not started | Fixed `.take(N)` limits everywhere |
+| Component library | Not started | Custom Tailwind components |
+| Automated testing | Not started | No test framework or test files |
 
 ---
 
-*This documentation was generated from a thorough analysis of the complete codebase including all Convex functions, Next.js routes, components, configuration files, and planning documents.*
+### 17.1 SMS Delivery (Schema Ready, No Provider)
+
+The `notificationDeliveries` table supports `sms` as a channel value with full status tracking (`pending`, `sent`, `failed`, `skipped`), retry counts, and error messages. However, no SMS provider (Twilio, Vonage, etc.) is installed or integrated. The email system pattern (`convex/email.ts`) provides a clear template for how to implement an SMS action.
+
+### 17.2 Assessment Seed Data (Placeholder Text Only)
+
+The 16 psychometric instruments are seeded via `convex/assessments/seed.ts`, but with **placeholder item text**: `"Item N — [Instrument text to be provided by admin]"`. All items default to a generic 5-point Likert scale regardless of the actual instrument requirements.
+
+The authoritative specifications for all 16 instruments — including exact item wording, correct response scales (some use 7-point, not 5-point), reverse-scored items, subscale compositions, and severity band cut-points — are documented in `SESSIONS_AND_ASSESSMENTS_REFERENCE.md`. This reference document is partially written (Sessions 1–3 have full detail; the remainder need completion).
+
+**To fully populate the instruments**: An admin would use the assessment template editor UI to update each draft template with the real item text, correct response scales, subscales, and severity bands from the reference document — then publish them.
+
+### 17.3 Advanced Filtering and Search
+
+Most list queries support basic filtering (by status, role, etc.), but advanced multi-field filtering, full-text search across tables, and saved filter presets are not yet implemented.
+
+### 17.4 Bulk Operations UI
+
+The `assignToSession()` mutation handles bulk assessment assignment server-side (assigns to all enrolled beneficiaries in a session). However, other potentially useful bulk operations — bulk user role changes, bulk cohort membership updates, bulk export selection — don't have dedicated UI surfaces.
+
+### 17.5 PDF Report Generation
+
+Only CSV export is currently implemented. The admin reports page (`/admin/reports`) generates CSV files client-side using a `downloadCsv()` helper. No PDF generation library (`@react-pdf/renderer`, `puppeteer`, `jspdf`, etc.) is installed. The server-side export mutations (`exportBeneficiaryReport`, `exportCohortReport`, `exportFinancialReport`) return structured data that could be fed into a PDF renderer.
+
+### 17.6 Data Pagination
+
+All Convex queries use `.take(N)` with fixed limits:
+- Small collections: `.take(50)` (notifications, materials, mentor notes)
+- Medium collections: `.take(100-200)` (users, sessions, support requests, documents)
+- Large collections: `.take(1000)` (financial report export)
+
+Convex's `.paginate()` API with cursor-based pagination is documented in the project's AI guidelines (`convex/_generated/ai/guidelines.md`) but is not used anywhere. For tables that grow (notifications, audit logs, disbursements, attendance), cursor-based pagination with a "load more" UI pattern would improve performance and prevent silent data truncation.
+
+### 17.7 Component Library
+
+The UI uses custom Tailwind CSS components. While `Design-System.md` provides comprehensive design tokens (colors, typography, spacing, border radius, shadows, animations), there is no shared component library (e.g., shadcn/ui). Adopting one would reduce duplication across the 33 page files and enforce design consistency.
+
+### 17.8 Automated Testing
+
+No test framework is configured:
+- No `jest`, `vitest`, `playwright`, or `cypress` in `package.json`
+- No test files (`.test.ts`, `.spec.ts`) in the codebase
+- No `test` script in `package.json`
+- The implementation plan explicitly states: *"manual exploratory testing is intentionally left to the product owner"*
+
+High-value test targets for future coverage:
+- **Convex function authorization**: Verify each function rejects unauthorized callers
+- **Support request state machine**: Verify all valid transitions succeed and invalid ones throw
+- **Assessment scoring engine**: Verify reverse scoring, subscale calculation, severity band matching, and flag behavior
+- **Safeguarding auto-creation**: Verify flagged scores create the correct safeguarding actions with correct assignees
+- **Email idempotency**: Verify duplicate event keys don't produce duplicate emails
+- **E2E critical paths**: Beneficiary onboarding, assessment completion, support request lifecycle
+
+### 17.9 Sessions & Assessments Reference Document (Partially Written)
+
+`SESSIONS_AND_ASSESSMENTS_REFERENCE.md` is the authoritative reference for all 16 curriculum sessions and their mapped psychometric instruments. It currently has full detail for **Sessions 1–3** (Meaning in Life Questionnaire, Achievement Goal Questionnaire-Revised, and one more). The remaining sessions (4–16) need their full instrument specifications written — including exact item wording, response scales, subscale rules, severity bands, and flag thresholds.
+
+---
+
+*This documentation was generated from a thorough analysis of the complete codebase including all Convex functions, Next.js routes, components, configuration files, and planning documents. Last verified: 2026-03-21.*

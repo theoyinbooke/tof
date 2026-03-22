@@ -11,6 +11,7 @@
 import type * as analytics from "../analytics.js";
 import type * as assessments_assignments from "../assessments/assignments.js";
 import type * as assessments_responses from "../assessments/responses.js";
+import type * as assessments_results from "../assessments/results.js";
 import type * as assessments_scoring from "../assessments/scoring.js";
 import type * as assessments_seed from "../assessments/seed.js";
 import type * as assessments_templates from "../assessments/templates.js";
@@ -34,6 +35,7 @@ import type * as mentorNotes from "../mentorNotes.js";
 import type * as notifications from "../notifications.js";
 import type * as safeguarding from "../safeguarding.js";
 import type * as sessions from "../sessions.js";
+import type * as sessions_seed from "../sessions/seed.js";
 import type * as support from "../support.js";
 import type * as users from "../users.js";
 import type * as validators from "../validators.js";
@@ -48,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   "assessments/assignments": typeof assessments_assignments;
   "assessments/responses": typeof assessments_responses;
+  "assessments/results": typeof assessments_results;
   "assessments/scoring": typeof assessments_scoring;
   "assessments/seed": typeof assessments_seed;
   "assessments/templates": typeof assessments_templates;
@@ -71,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   safeguarding: typeof safeguarding;
   sessions: typeof sessions;
+  "sessions/seed": typeof sessions_seed;
   support: typeof support;
   users: typeof users;
   validators: typeof validators;

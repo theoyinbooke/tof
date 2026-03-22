@@ -3,15 +3,16 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
 
 type Role = "admin" | "facilitator" | "mentor" | "beneficiary";
 
-const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-50 text-red-600",
-  facilitator: "bg-blue-50 text-blue-600",
-  mentor: "bg-yellow-50 text-yellow-600",
-  beneficiary: "bg-[#E6FBF0] text-[#00D632]",
-};
+const ROLE_OPTIONS = [
+  { label: "Admin", value: "admin" },
+  { label: "Facilitator", value: "facilitator" },
+  { label: "Mentor", value: "mentor" },
+  { label: "Beneficiary", value: "beneficiary" },
+];
 
 export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<Role | undefined>();
@@ -64,14 +65,13 @@ export default function AdminUsersPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <select value={u.role} onChange={(e) => handleRoleChange(u._id, e.target.value as Role)}
+                <Select
+                  value={u.role}
+                  onChange={(val) => handleRoleChange(u._id, val as Role)}
+                  options={ROLE_OPTIONS}
                   disabled={saving === u._id}
-                  className={`rounded-full border-0 px-2 py-0.5 text-[10px] font-medium ${ROLE_COLORS[u.role]} cursor-pointer`}>
-                  <option value="admin">Admin</option>
-                  <option value="facilitator">Facilitator</option>
-                  <option value="mentor">Mentor</option>
-                  <option value="beneficiary">Beneficiary</option>
-                </select>
+                  variant="compact"
+                />
                 <button onClick={() => handleToggleActive(u._id, !u.isActive)} disabled={saving === u._id}
                   className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${u.isActive ? "bg-[#E6FBF0] text-[#00D632]" : "bg-red-50 text-red-600"}`}>
                   {u.isActive ? "Active" : "Inactive"}

@@ -3,8 +3,9 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
-import { use, useState, useCallback } from "react";
+import { use, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function AssessmentCompletionPage({ params }: { params: Promise<{ assignmentId: string }> }) {
   const { assignmentId } = use(params);
@@ -18,6 +19,7 @@ export default function AssessmentCompletionPage({ params }: { params: Promise<{
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const router = useRouter();
 
   // Initialize answers from existing response
   const existingAnswers = assignment?.response?.answers;
@@ -42,33 +44,17 @@ export default function AssessmentCompletionPage({ params }: { params: Promise<{
   const currentItem = items[currentIndex];
   const isCompleted = assignment.status === "completed" || submitted;
 
+  // Redirect to the full results view when assessment is completed and scored
+  useEffect(() => {
+    if (isCompleted && assignment.score) {
+      router.replace(`/beneficiary/assessments/${assignmentId}/results`);
+    }
+  }, [isCompleted, assignment.score, assignmentId, router]);
+
   if (isCompleted && assignment.score) {
     return (
-      <div className="p-6 lg:p-10">
-        <Link href="/beneficiary/assessments" className="text-sm text-[#737373] hover:text-[#171717]">&larr; Back to assessments</Link>
-        <div className="mx-auto mt-6 max-w-lg">
-          <div className="rounded-xl border border-[#E5E5E5] bg-white p-8 text-center">
-            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-[#E6FBF0]">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00D632" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" />
-              </svg>
-            </div>
-            <h1 className="mt-4 text-xl font-semibold text-[#171717]">Assessment Complete</h1>
-            <p className="mt-2 text-sm text-[#737373]">{template.name}</p>
-            <div className="mt-6 rounded-lg bg-[#F7F7F7] p-4">
-              <p className="text-3xl font-semibold text-[#171717]">{assignment.score.totalScore}</p>
-              <p className="mt-1 text-sm text-[#737373]">Total Score</p>
-              {assignment.score.severityBand && (
-                <span className="mt-2 inline-block rounded-full bg-[#F0F0F0] px-3 py-1 text-xs font-medium text-[#525252]">
-                  {assignment.score.severityBand}
-                </span>
-              )}
-            </div>
-            {assignment.score.interpretation && (
-              <p className="mt-4 text-sm text-[#737373]">{assignment.score.interpretation}</p>
-            )}
-          </div>
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E5E5E5] border-t-[#00D632]" />
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useState } from "react";
 import type { Id } from "../../../../../convex/_generated/dataModel";
+import { Select } from "@/components/ui/select";
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -95,13 +96,18 @@ export default function AdminReportsPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#737373]">Individual Report</h2>
           <p className="mt-1 text-xs text-[#737373]">Export a beneficiary&apos;s profile, attendance, and assessment data.</p>
           <div className="mt-4">
-            <select value={selectedBeneficiary} onChange={(e) => setSelectedBeneficiary(e.target.value)}
-              className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]">
-              <option value="">Select beneficiary</option>
-              {beneficiaries.map((b) => (
-                <option key={b._id} value={b.userId}>{b.firstName && b.lastName ? `${b.firstName} ${b.lastName}` : b.user?.name || "Unnamed"}</option>
-              ))}
-            </select>
+            <Select
+              value={selectedBeneficiary}
+              onChange={setSelectedBeneficiary}
+              placeholder="Select beneficiary"
+              options={[
+                { label: "Select beneficiary", value: "" },
+                ...beneficiaries.map((b) => ({
+                  label: b.firstName && b.lastName ? `${b.firstName} ${b.lastName}` : b.user?.name || "Unnamed",
+                  value: b.userId,
+                })),
+              ]}
+            />
           </div>
           <button onClick={handleBeneficiaryExport} disabled={!selectedBeneficiary || generating === "beneficiary"}
             className="mt-3 w-full rounded-md bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-[#262626] disabled:opacity-50">
@@ -114,13 +120,18 @@ export default function AdminReportsPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#737373]">Cohort Report</h2>
           <p className="mt-1 text-xs text-[#737373]">Export all members of a cohort with summary metrics.</p>
           <div className="mt-4">
-            <select value={selectedCohort} onChange={(e) => setSelectedCohort(e.target.value)}
-              className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]">
-              <option value="">Select cohort</option>
-              {cohorts.map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
+            <Select
+              value={selectedCohort}
+              onChange={setSelectedCohort}
+              placeholder="Select cohort"
+              options={[
+                { label: "Select cohort", value: "" },
+                ...cohorts.map((c) => ({
+                  label: c.name,
+                  value: c._id,
+                })),
+              ]}
+            />
           </div>
           <button onClick={handleCohortExport} disabled={!selectedCohort || generating === "cohort"}
             className="mt-3 w-full rounded-md bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-[#262626] disabled:opacity-50">

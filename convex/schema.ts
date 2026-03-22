@@ -365,11 +365,14 @@ export default defineSchema({
       }),
     ),
     // Scoring config
+    scoringMethod: v.optional(v.union(v.literal("sum"), v.literal("average"), v.literal("mean"))),
+    subscaleOnly: v.optional(v.boolean()), // true for MLQ, AGQ-R (no total score)
     subscales: v.optional(
       v.array(
         v.object({
           name: v.string(),
           itemNumbers: v.array(v.number()),
+          scoringMethod: v.optional(v.union(v.literal("sum"), v.literal("average"))),
         }),
       ),
     ),
@@ -385,6 +388,26 @@ export default defineSchema({
         }),
       ),
     ),
+    // Severity bands for subscales (for MLQ 2x2 matrix interpretation)
+    subscaleSeverityBands: v.optional(
+      v.array(
+        v.object({
+          subscaleName: v.string(),
+          bands: v.array(
+            v.object({
+              label: v.string(),
+              min: v.number(),
+              max: v.number(),
+              flagBehavior: v.optional(
+                v.union(v.literal("none"), v.literal("mentor_notify"), v.literal("admin_review")),
+              ),
+            }),
+          ),
+        }),
+      ),
+    ),
+    // Platform display texts keyed by severity band label
+    platformDisplayTexts: v.optional(v.record(v.string(), v.string())),
     totalScoreRange: v.optional(
       v.object({
         min: v.number(),
@@ -438,9 +461,10 @@ export default defineSchema({
     assignmentId: v.id("assessmentAssignments"),
     userId: v.id("users"),
     templateId: v.id("assessmentTemplates"),
-    totalScore: v.number(),
+    totalScore: v.optional(v.number()),
     subscaleScores: v.optional(v.record(v.string(), v.number())),
     severityBand: v.optional(v.string()),
+    platformDisplayText: v.optional(v.string()),
     flagBehavior: v.optional(
       v.union(v.literal("none"), v.literal("mentor_notify"), v.literal("admin_review")),
     ),

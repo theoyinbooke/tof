@@ -4,6 +4,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { EducationStepper } from "@/components/education/education-stepper";
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
+import { NIGERIAN_STATE_OPTIONS } from "@/lib/nigeria-locations";
 
 type Stage = "primary" | "jss" | "sss" | "jamb" | "university" | "polytechnic" | "coe" | "nysc" | "post_nysc";
 
@@ -167,18 +169,30 @@ export default function EducationPage() {
                   <label className="mb-1.5 block text-sm text-[#262626]">
                     {FIELD_LABELS[field] || field}
                   </label>
-                  <input
-                    type={
-                      field.includes("Year") || field === "jambScore"
-                        ? "number"
-                        : "text"
-                    }
-                    value={form[field] || ""}
-                    onChange={(e) =>
-                      setForm({ ...form, [field]: e.target.value })
-                    }
-                    className="h-11 w-full rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#171717]"
-                  />
+                  {field === "nyscState" ? (
+                    <Select
+                      value={form[field] || ""}
+                      onChange={(value) => setForm({ ...form, [field]: value })}
+                      options={NIGERIAN_STATE_OPTIONS}
+                      placeholder="Search and select a state"
+                      searchPlaceholder="Search Nigerian states"
+                      emptyMessage="No state matches your search."
+                      searchable
+                    />
+                  ) : (
+                    <input
+                      type={
+                        field.includes("Year") || field === "jambScore"
+                          ? "number"
+                          : "text"
+                      }
+                      value={form[field] || ""}
+                      onChange={(e) =>
+                        setForm({ ...form, [field]: e.target.value })
+                      }
+                      className="h-11 w-full rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#171717]"
+                    />
+                  )}
                 </div>
               ))}
               <div className="flex justify-end gap-2 pt-2">

@@ -4,6 +4,17 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import Link from "next/link";
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
+
+const PILLAR_OPTIONS = [
+  { label: "Select pillar", value: "" },
+  { label: "Personal Development", value: "personal_development" },
+  { label: "Academic Excellence", value: "academic_excellence" },
+  { label: "Career Readiness", value: "career_readiness" },
+  { label: "Financial Literacy", value: "financial_literacy" },
+  { label: "Health & Wellness", value: "health_wellness" },
+  { label: "Leadership", value: "leadership" },
+];
 
 export default function AdminSessionsPage() {
   const sessions = useQuery(api.sessions.list, {});
@@ -66,15 +77,12 @@ export default function AdminSessionsPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm text-[#262626]">Pillar</label>
-              <select value={form.pillar} onChange={(e) => setForm({ ...form, pillar: e.target.value })} className="h-11 w-full rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm outline-none focus:border-[#171717]">
-                <option value="">Select pillar</option>
-                <option value="personal_development">Personal Development</option>
-                <option value="academic_excellence">Academic Excellence</option>
-                <option value="career_readiness">Career Readiness</option>
-                <option value="financial_literacy">Financial Literacy</option>
-                <option value="health_wellness">Health & Wellness</option>
-                <option value="leadership">Leadership</option>
-              </select>
+              <Select
+                value={form.pillar}
+                onChange={(val) => setForm({ ...form, pillar: val })}
+                options={PILLAR_OPTIONS}
+                placeholder="Select pillar"
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-sm text-[#262626]">Description</label>

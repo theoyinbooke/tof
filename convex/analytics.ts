@@ -147,9 +147,9 @@ export const getPillarIndicators = query({
       if (!pillarData[pillar]) {
         pillarData[pillar] = { total: 0, count: 0, scores: [] };
       }
-      pillarData[pillar].total += score.totalScore;
+      pillarData[pillar].total += score.totalScore ?? 0;
       pillarData[pillar].count += 1;
-      pillarData[pillar].scores.push(score.totalScore);
+      pillarData[pillar].scores.push(score.totalScore ?? 0);
     }
 
     const indicators = Object.entries(pillarData).map(([pillar, data]) => ({
@@ -195,7 +195,7 @@ export const getCohortAverages = query({
             count: 0,
           };
         }
-        templateAverages[key].total += score.totalScore;
+        templateAverages[key].total += score.totalScore ?? 0;
         templateAverages[key].count += 1;
       }
     }
