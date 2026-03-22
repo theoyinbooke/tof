@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { requireAdmin, requireAdminOrMentor, requireOwnerOrAdmin } from "./authHelpers";
+import { requireAdmin, requireAdminOrMentor, requireOwnerOrAdmin, requireUser } from "./authHelpers";
 
 /** Full development profile: profile + education + attendance + support + assessments + mentorship */
 export const getDevelopmentProfile = query({
@@ -334,5 +334,107 @@ export const getTimeline = query({
       seen.add(key);
       return true;
     });
+  },
+});
+
+/** Onboarding checklist: checks platform setup status in real-time */
+export const getOnboardingStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireUser(ctx);
+    if (user.role !== "admin") return null;
+
+    // 1. Cohort exists and is active?
+    const cohorts = await ctx.db
+      .query("cohorts")
+      .withIndex("by_isActive", (q) => q.eq("isActive", true))
+      .take(1);
+    const hasCohort = cohorts.length > 0;
+    const cohortId = cohorts[0]?._id;
+
+    // 2. Assessment templates seeded (published)?
+    const templates = await ctx.db
+      .query("assessmentTemplates")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .take(1);
+    const hasTemplates = templates.length > 0;
+
+    // 3. Members added to cohort?
+    let hasMembers = false;
+    if (cohortId) {
+      const members = await ctx.db
+        .query("cohortMemberships")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", cohortId))
+        .take(1);
+      hasMembers = members.length > 0;
+    }
+
+    // 4. Sessions have scheduled dates?
+    let hasScheduledSessions = false;
+    if (cohortId) {
+      const sessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", cohortId))
+        .take(20);
+      hasScheduledSessions = sessions.some((s) => s.scheduledDate != null);
+    }
+
+    // 5. Facilitators assigned to sessions?
+    let hasFacilitators = false;
+    if (cohortId) {
+      const sessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", cohortId))
+        .take(20);
+      hasFacilitators = sessions.some((s) => s.facilitatorId != null);
+    }
+
+    // 6. Beneficiaries enrolled in sessions?
+    let hasEnrollments = false;
+    if (cohortId) {
+      const sessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", cohortId))
+        .take(20);
+      for (const session of sessions) {
+        const enrollments = await ctx.db
+          .query("sessionEnrollments")
+          .withIndex("by_sessionId_and_status", (q) =>
+            q.eq("sessionId", session._id).eq("status", "enrolled"),
+          )
+          .take(1);
+        if (enrollments.length > 0) {
+          hasEnrollments = true;
+          break;
+        }
+      }
+    }
+
+    // 7. At least one session moved to "upcoming"?
+    let hasUpcomingSession = false;
+    if (cohortId) {
+      const sessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", cohortId))
+        .take(20);
+      hasUpcomingSession = sessions.some(
+        (s) => s.status === "upcoming" || s.status === "active" || s.status === "completed",
+      );
+    }
+
+    const steps = [
+      { id: "cohort", label: "Create a cohort", done: hasCohort, href: "/admin/cohorts" },
+      { id: "templates", label: "Seed assessment templates", done: hasTemplates, href: "/admin/assessments" },
+      { id: "members", label: "Add beneficiaries to cohort", done: hasMembers, href: hasCohort && cohortId ? `/admin/cohorts/${cohortId}` : "/admin/cohorts" },
+      { id: "schedule", label: "Set session dates", done: hasScheduledSessions, href: "/admin/sessions" },
+      { id: "facilitators", label: "Assign facilitators to sessions", done: hasFacilitators, href: "/admin/sessions" },
+      { id: "enroll", label: "Enroll members in sessions", done: hasEnrollments, href: hasCohort && cohortId ? `/admin/cohorts/${cohortId}` : "/admin/sessions" },
+      { id: "launch", label: "Launch first session (set to Upcoming)", done: hasUpcomingSession, href: "/admin/sessions" },
+    ];
+
+    const completedCount = steps.filter((s) => s.done).length;
+    const allDone = completedCount === steps.length;
+
+    return { steps, completedCount, total: steps.length, allDone };
   },
 });

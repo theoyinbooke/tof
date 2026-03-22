@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import { OnboardingChecklist } from "./onboarding-checklist";
 
 export function AdminDashboard() {
   const beneficiaries = useQuery(api.beneficiaries.listBeneficiaries, {});
@@ -19,6 +20,11 @@ export function AdminDashboard() {
     <div className="p-6 lg:p-10">
       <h1 className="text-xl font-semibold text-[#171717]">Admin Dashboard</h1>
       <p className="mt-1 text-sm text-[#737373]">Platform overview and controls.</p>
+
+      {/* Onboarding checklist — auto-hides when all steps complete */}
+      <div className="mt-6">
+        <OnboardingChecklist />
+      </div>
 
       {/* Summary cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
