@@ -20,9 +20,9 @@ export default async function Home() {
             <Image
               src="/logo-white.png"
               alt="TheOyinbooke Foundation"
-              width={180}
-              height={180}
-              className="h-12 w-auto sm:h-14"
+              width={800}
+              height={500}
+              className="h-10 w-auto sm:h-12"
               priority
             />
           </div>

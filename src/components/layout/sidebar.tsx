@@ -69,9 +69,9 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         <Image
           src="/logo-dark.png"
           alt="TheOyinbooke Foundation"
-          width={120}
-          height={120}
-          className="h-8 w-auto"
+          width={800}
+          height={500}
+          className="h-6 w-auto"
         />
         {onClose && (
           <button

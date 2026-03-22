@@ -29,13 +29,13 @@ export const metadata: Metadata = {
     url: "https://theoyinbookefoundation.com",
     type: "website",
     locale: "en_US",
-    images: [{ url: "/logo-dark.png", width: 500, height: 500 }],
+    images: [{ url: "/og-image.png", width: 2856, height: 1502 }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "TheOyinbooke Foundation",
     description: "Empowering beneficiaries through education and holistic support.",
-    images: ["/logo-dark.png"],
+    images: ["/og-image.png"],
   },
 };
 
