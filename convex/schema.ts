@@ -275,6 +275,15 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_sessionId_and_userId", ["sessionId", "userId"]),
 
+  libraryCategories: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    slug: v.string(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_slug", ["slug"]),
+
   materials: defineTable({
     title: v.string(),
     description: v.optional(v.string()),
@@ -289,6 +298,10 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")),
     pillar: v.optional(v.string()),
     sessionId: v.optional(v.id("sessions")),
+    categoryId: v.optional(v.id("libraryCategories")),
+    visibility: v.optional(
+      v.union(v.literal("public"), v.literal("restricted")),
+    ),
     isRequired: v.boolean(),
     createdBy: v.id("users"),
     createdAt: v.number(),
@@ -296,7 +309,22 @@ export default defineSchema({
   })
     .index("by_pillar", ["pillar"])
     .index("by_sessionId", ["sessionId"])
-    .index("by_createdBy", ["createdBy"]),
+    .index("by_createdBy", ["createdBy"])
+    .index("by_categoryId", ["categoryId"])
+    .index("by_visibility", ["visibility"]),
+
+  resourceAccess: defineTable({
+    materialId: v.id("materials"),
+    targetType: v.union(v.literal("cohort"), v.literal("user")),
+    cohortId: v.optional(v.id("cohorts")),
+    userId: v.optional(v.id("users")),
+    grantedBy: v.id("users"),
+    grantedAt: v.number(),
+  })
+    .index("by_materialId", ["materialId"])
+    .index("by_userId", ["userId"])
+    .index("by_cohortId", ["cohortId"])
+    .index("by_materialId_and_targetType", ["materialId", "targetType"]),
 
   notifications: defineTable({
     userId: v.id("users"),

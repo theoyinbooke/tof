@@ -15,10 +15,31 @@ export const list = query({
   args: { status: v.optional(statusValidator) },
   handler: async (ctx, args) => {
     await requireUser(ctx);
+    let sessions;
     if (args.status) {
-      return await ctx.db.query("sessions").withIndex("by_status", (q) => q.eq("status", args.status!)).take(200);
+      sessions = await ctx.db.query("sessions").withIndex("by_status", (q) => q.eq("status", args.status!)).take(200);
+    } else {
+      sessions = await ctx.db.query("sessions").take(200);
     }
-    return await ctx.db.query("sessions").take(200);
+
+    // Enrich with facilitator and cohort names
+    const enriched = await Promise.all(
+      sessions.map(async (session) => {
+        let facilitatorName: string | null = null;
+        if (session.facilitatorId) {
+          const f = await ctx.db.get(session.facilitatorId);
+          if (f) facilitatorName = f.name;
+        }
+        let cohortName: string | null = null;
+        if (session.cohortId) {
+          const c = await ctx.db.get(session.cohortId);
+          if (c) cohortName = c.name;
+        }
+        return { ...session, facilitatorName, cohortName };
+      }),
+    );
+
+    return enriched;
   },
 });
 
@@ -26,7 +47,24 @@ export const getById = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, args) => {
     await requireUser(ctx);
-    return await ctx.db.get(args.sessionId);
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) return null;
+
+    // Enrich with facilitator name
+    let facilitator: { _id: string; name: string; email: string } | null = null;
+    if (session.facilitatorId) {
+      const f = await ctx.db.get(session.facilitatorId);
+      if (f) facilitator = { _id: f._id, name: f.name, email: f.email };
+    }
+
+    // Enrich with cohort name
+    let cohort: { _id: string; name: string } | null = null;
+    if (session.cohortId) {
+      const c = await ctx.db.get(session.cohortId);
+      if (c) cohort = { _id: c._id, name: c.name };
+    }
+
+    return { ...session, facilitator, cohort };
   },
 });
 
@@ -134,6 +172,62 @@ export const update = mutation({
   },
 });
 
+export const listByCohort = query({
+  args: { cohortId: v.id("cohorts") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    if (user.role !== "admin" && user.role !== "facilitator")
+      throw new Error("Unauthorized");
+
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(100);
+
+    // Enrich each session with facilitator name and enrollment count
+    const enriched = await Promise.all(
+      sessions.map(async (session) => {
+        let facilitatorName: string | undefined;
+        if (session.facilitatorId) {
+          const fac = await ctx.db.get(session.facilitatorId);
+          facilitatorName = fac?.name;
+        }
+
+        // Count enrollments
+        const enrollments = await ctx.db
+          .query("sessionEnrollments")
+          .withIndex("by_sessionId_and_status", (q) =>
+            q.eq("sessionId", session._id).eq("status", "enrolled"),
+          )
+          .take(500);
+
+        // Count attendance
+        const attendance = await ctx.db
+          .query("sessionAttendance")
+          .withIndex("by_sessionId", (q) => q.eq("sessionId", session._id))
+          .take(500);
+
+        const presentCount = attendance.filter(
+          (a) => a.status === "present",
+        ).length;
+
+        return {
+          ...session,
+          facilitatorName,
+          enrolledCount: enrollments.length,
+          attendedCount: presentCount,
+          attendanceRate:
+            enrollments.length > 0
+              ? Math.round((presentCount / enrollments.length) * 100)
+              : 0,
+        };
+      }),
+    );
+
+    return enriched.sort((a, b) => a.sessionNumber - b.sessionNumber);
+  },
+});
+
 export const listByFacilitator = query({
   args: {},
   handler: async (ctx) => {
@@ -155,7 +249,29 @@ export const listByBeneficiary = query({
         .filter((e) => e.status === "enrolled")
         .map(async (e) => {
           const session = await ctx.db.get(e.sessionId);
-          return session ? { ...session, enrollment: e } : null;
+          if (!session) return null;
+
+          let facilitatorName: string | null = null;
+          if (session.facilitatorId) {
+            const f = await ctx.db.get(session.facilitatorId);
+            if (f) facilitatorName = f.name;
+          }
+
+          // Check if there's an assessment assignment for this session + user
+          const assignments = await ctx.db
+            .query("assessmentAssignments")
+            .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id))
+            .take(100);
+          const sessionAssignment = assignments.find(
+            (a) => a.sessionId === session._id && (a.status === "assigned" || a.status === "in_progress"),
+          );
+
+          return {
+            ...session,
+            enrollment: e,
+            facilitatorName,
+            assessmentAssignmentId: sessionAssignment?._id || null,
+          };
         }),
     );
     return sessions.filter(Boolean);

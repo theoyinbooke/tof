@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { Id } from "../_generated/dataModel";
 import { requireUser, requireOwnerOrAdmin, requireAdmin } from "../authHelpers";
 
 export const getByAssignment = query({
@@ -69,6 +70,98 @@ export const listFlagged = query({
     );
 
     return enriched;
+  },
+});
+
+export const getCohortAssessmentSummary = query({
+  args: { cohortId: v.id("cohorts") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    if (user.role !== "admin") throw new Error("Unauthorized");
+
+    // Get all sessions for this cohort
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(100);
+
+    // For each session, get assignments and scores
+    const summaries = [];
+    for (const session of sessions) {
+      const assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", session._id))
+        .take(500);
+
+      if (assignments.length === 0) continue;
+
+      // Group by templateId
+      const byTemplate: Record<string, typeof assignments> = {};
+      for (const a of assignments) {
+        const key = a.templateId as string;
+        if (!byTemplate[key]) byTemplate[key] = [];
+        byTemplate[key].push(a);
+      }
+
+      for (const [templateId, templateAssignments] of Object.entries(
+        byTemplate,
+      )) {
+        const template = await ctx.db.get(
+          templateId as unknown as Id<"assessmentTemplates">,
+        );
+        if (!template) continue;
+
+        const completed = templateAssignments.filter(
+          (a) => a.status === "completed",
+        );
+
+        // Get scores for completed assignments
+        let totalScoreSum = 0;
+        let scoreCount = 0;
+        let flaggedCount = 0;
+        const bandCounts: Record<string, number> = {};
+
+        for (const a of completed) {
+          const scores = await ctx.db
+            .query("assessmentScores")
+            .withIndex("by_assignmentId", (q) => q.eq("assignmentId", a._id))
+            .take(1);
+
+          if (scores.length > 0) {
+            const score = scores[0];
+            if (score.totalScore != null) {
+              totalScoreSum += score.totalScore;
+              scoreCount++;
+            }
+            if (score.severityBand) {
+              bandCounts[score.severityBand] =
+                (bandCounts[score.severityBand] || 0) + 1;
+            }
+            if (score.flagBehavior && score.flagBehavior !== "none") {
+              flaggedCount++;
+            }
+          }
+        }
+
+        summaries.push({
+          templateId,
+          templateName: template.name,
+          shortCode: template.shortCode,
+          sessionNumber: session.sessionNumber,
+          sessionTitle: session.title,
+          totalAssigned: templateAssignments.length,
+          completedCount: completed.length,
+          averageScore:
+            scoreCount > 0
+              ? Math.round((totalScoreSum / scoreCount) * 10) / 10
+              : null,
+          flaggedCount,
+          bandCounts,
+        });
+      }
+    }
+
+    return summaries.sort((a, b) => a.sessionNumber - b.sessionNumber);
   },
 });
 

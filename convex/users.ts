@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { logAuditEvent } from "./auditLogs";
 import { notifyWithEmail } from "./emailHelpers";
+import { requireUser } from "./authHelpers";
 
 export const getOrCreateUser = mutation({
   args: {},
@@ -135,6 +136,30 @@ export const listUsers = query({
   },
 });
 
+export const listByRole = query({
+  args: {
+    role: v.union(
+      v.literal("admin"),
+      v.literal("facilitator"),
+      v.literal("mentor"),
+      v.literal("beneficiary"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    return await ctx.db
+      .query("users")
+      .withIndex("by_role_and_isActive", (q) =>
+        q.eq("role", args.role).eq("isActive", true),
+      )
+      .take(200);
+  },
+});
+
 export const updateUserRole = mutation({
   args: {
     userId: v.id("users"),
@@ -199,6 +224,30 @@ export const updateUserRole = mutation({
   },
 });
 
+export const searchBeneficiaries = query({
+  args: { search: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    if (user.role !== "admin") throw new Error("Unauthorized");
+
+    const beneficiaries = await ctx.db
+      .query("users")
+      .withIndex("by_role_and_isActive", (q) =>
+        q.eq("role", "beneficiary").eq("isActive", true),
+      )
+      .take(200);
+
+    if (!args.search) return beneficiaries.slice(0, 50);
+
+    const term = args.search.toLowerCase();
+    return beneficiaries.filter(
+      (u) =>
+        u.name.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term),
+    );
+  },
+});
+
 export const toggleUserActive = mutation({
   args: {
     userId: v.id("users"),
@@ -254,3 +303,4 @@ export const toggleUserActive = mutation({
     return args.userId;
   },
 });
+

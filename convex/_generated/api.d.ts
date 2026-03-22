@@ -29,6 +29,8 @@ import type * as emailHelpers from "../emailHelpers.js";
 import type * as emails_layout from "../emails/layout.js";
 import type * as emails_templates from "../emails/templates.js";
 import type * as exports from "../exports.js";
+import type * as library from "../library.js";
+import type * as libraryCategories from "../libraryCategories.js";
 import type * as materials from "../materials.js";
 import type * as mentorAssignments from "../mentorAssignments.js";
 import type * as mentorNotes from "../mentorNotes.js";
@@ -68,6 +70,8 @@ declare const fullApi: ApiFromModules<{
   "emails/layout": typeof emails_layout;
   "emails/templates": typeof emails_templates;
   exports: typeof exports;
+  library: typeof library;
+  libraryCategories: typeof libraryCategories;
   materials: typeof materials;
   mentorAssignments: typeof mentorAssignments;
   mentorNotes: typeof mentorNotes;

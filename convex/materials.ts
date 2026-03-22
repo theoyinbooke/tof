@@ -52,12 +52,17 @@ export const create = mutation({
     storageId: v.optional(v.id("_storage")),
     pillar: v.optional(v.string()),
     sessionId: v.optional(v.id("sessions")),
+    categoryId: v.optional(v.id("libraryCategories")),
+    visibility: v.optional(
+      v.union(v.literal("public"), v.literal("restricted")),
+    ),
     isRequired: v.boolean(),
   },
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx);
     const materialId = await ctx.db.insert("materials", {
       ...args,
+      visibility: args.visibility ?? "public",
       createdBy: user._id,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -104,6 +109,10 @@ export const update = mutation({
     url: v.optional(v.string()),
     pillar: v.optional(v.string()),
     sessionId: v.optional(v.id("sessions")),
+    categoryId: v.optional(v.id("libraryCategories")),
+    visibility: v.optional(
+      v.union(v.literal("public"), v.literal("restricted")),
+    ),
     isRequired: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {

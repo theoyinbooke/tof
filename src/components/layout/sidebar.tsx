@@ -43,6 +43,7 @@ const roleNavItems: Record<string, NavItem[]> = {
     { href: "/admin/beneficiaries", label: "Beneficiaries", icon: MenteesIcon },
     { href: "/admin/cohorts", label: "Cohorts", icon: CohortsIcon },
     { href: "/admin/sessions", label: "Sessions", icon: SessionsIcon },
+    { href: "/admin/library", label: "Library", icon: AdminLibraryIcon },
     { href: "/admin/assessments", label: "Assessments", icon: AssessmentsIcon },
     { href: "/admin/support", label: "Support", icon: SupportIcon },
     { href: "/admin/financial", label: "Financial", icon: FinancialIcon },
@@ -362,6 +363,15 @@ function SafeguardingIcon({ active }: { active?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke={active ? "#171717" : "#525252"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 1.5L2.5 4.5v4c0 4.5 3 7.5 6.5 9 3.5-1.5 6.5-4.5 6.5-9v-4L9 1.5z" />
+    </svg>
+  );
+}
+
+function AdminLibraryIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke={active ? "#171717" : "#525252"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h5l2 2h7v10H2V3z" />
+      <path d="M6 10h6M6 13h4" />
     </svg>
   );
 }

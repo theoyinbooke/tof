@@ -224,10 +224,27 @@ export const getCohortOverview = query({
 
         const active = memberships.filter((m) => m.status === "active").length;
 
+        const sessions = await ctx.db
+          .query("sessions")
+          .withIndex("by_cohortId", (q) => q.eq("cohortId", c._id))
+          .take(100);
+
+        const totalSessions = sessions.length;
+        const nextSession = sessions
+          .filter(
+            (s) =>
+              s.scheduledDate &&
+              (s.status === "upcoming" || s.status === "active"),
+          )
+          .sort((a, b) => (a.scheduledDate || 0) - (b.scheduledDate || 0))[0];
+
         return {
           ...c,
           totalMembers: memberships.length,
           activeMembers: active,
+          totalSessions,
+          nextSessionDate: nextSession?.scheduledDate,
+          nextSessionTitle: nextSession?.title,
         };
       }),
     );

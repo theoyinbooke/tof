@@ -263,6 +263,34 @@ export function newMaterial(data: TemplateData): EmailResult {
   };
 }
 
+export function resourceAssigned(data: TemplateData): EmailResult {
+  const name = data.recipientName || "there";
+  const resourceTitle = data.resourceTitle || "a new resource";
+  const resourceType = data.resourceType || "resource";
+  const assignedTo = data.assignedTo || "";
+
+  const info = assignedTo
+    ? `A resource has been shared with <strong>${assignedTo}</strong>.`
+    : "A resource has been shared with you.";
+
+  const content = [
+    heading("New Resource Available"),
+    paragraph(`Hello ${name}, ${info}`),
+    infoTable([
+      { label: "Title", value: resourceTitle },
+      { label: "Type", value: resourceType.toUpperCase() },
+    ]),
+    paragraph("Visit the resource library to access this material."),
+    button("Open Library", link("/library")),
+  ].join("");
+
+  return {
+    subject: `New resource shared: ${resourceTitle}`,
+    html: emailLayout(content, `New resource available: ${resourceTitle}`),
+    fromType: "notify",
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  3. ASSESSMENTS
 // ═══════════════════════════════════════════════════════════════
@@ -719,6 +747,7 @@ const TEMPLATES: Record<string, (data: TemplateData) => EmailResult> = {
   "session-reminder": sessionReminder,
   "session-cancelled": sessionCancelled,
   "new-material": newMaterial,
+  "resource-assigned": resourceAssigned,
   "assessment-assigned": assessmentAssigned,
   "assessment-due-soon": assessmentDueSoon,
   "assessment-overdue": assessmentOverdue,

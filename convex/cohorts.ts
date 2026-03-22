@@ -19,6 +19,17 @@ export const getById = query({
   },
 });
 
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    return await ctx.db
+      .query("cohorts")
+      .withIndex("by_isActive", (q) => q.eq("isActive", true))
+      .take(100);
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -147,6 +158,61 @@ export const updateMemberStatus = mutation({
       updatedAt: Date.now(),
     });
     return args.membershipId;
+  },
+});
+
+export const getWithStats = query({
+  args: { cohortId: v.id("cohorts") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    if (user.role !== "admin") throw new Error("Unauthorized");
+
+    const cohort = await ctx.db.get(args.cohortId);
+    if (!cohort) return null;
+
+    // Count members by status
+    const members = await ctx.db
+      .query("cohortMemberships")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(500);
+
+    const totalMembers = members.length;
+    const activeMembers = members.filter((m) => m.status === "active").length;
+
+    // Count sessions linked to this cohort
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(100);
+
+    const totalSessions = sessions.length;
+    const completedSessions = sessions.filter(
+      (s) => s.status === "completed",
+    ).length;
+    const nextSession = sessions
+      .filter(
+        (s) =>
+          s.scheduledDate &&
+          (s.status === "upcoming" || s.status === "active"),
+      )
+      .sort((a, b) => (a.scheduledDate || 0) - (b.scheduledDate || 0))[0];
+
+    // Pillar distribution
+    const pillarCounts: Record<string, number> = {};
+    for (const s of sessions) {
+      pillarCounts[s.pillar] = (pillarCounts[s.pillar] || 0) + 1;
+    }
+
+    return {
+      ...cohort,
+      totalMembers,
+      activeMembers,
+      totalSessions,
+      completedSessions,
+      nextSessionTitle: nextSession?.title,
+      nextSessionDate: nextSession?.scheduledDate,
+      pillarCounts,
+    };
   },
 });
 

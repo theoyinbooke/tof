@@ -98,6 +98,36 @@ export const assignToSession = mutation({
   },
 });
 
+export const listBySession = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    const assignments = await ctx.db
+      .query("assessmentAssignments")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .take(200);
+
+    // Group by template and count
+    const templateMap = new Map<string, { templateId: string; templateName: string; count: number; dueDate?: number }>();
+    for (const a of assignments) {
+      const key = a.templateId as string;
+      if (!templateMap.has(key)) {
+        const template = await ctx.db.get(a.templateId);
+        templateMap.set(key, {
+          templateId: key,
+          templateName: template?.name || "Unknown",
+          count: 0,
+          dueDate: a.dueDate,
+        });
+      }
+      const entry = templateMap.get(key)!;
+      entry.count++;
+    }
+
+    return Array.from(templateMap.values());
+  },
+});
+
 export const getMyAssignments = query({
   args: {},
   handler: async (ctx) => {
