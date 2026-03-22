@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-[#E5E5E5] bg-white px-4">
@@ -21,12 +23,13 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
         </svg>
       </button>
 
-      <div className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00D632]">
-          <span className="text-xs font-bold text-white">T</span>
-        </div>
-        <span className="text-sm font-semibold text-[#171717]">TOF</span>
-      </div>
+      <Image
+        src="/logo-dark.png"
+        alt="TheOyinbooke Foundation"
+        width={120}
+        height={120}
+        className="h-7 w-auto"
+      />
 
       <div className="w-10" />
     </header>

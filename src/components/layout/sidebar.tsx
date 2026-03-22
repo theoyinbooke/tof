@@ -4,6 +4,7 @@ import { useUser, UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 type NavItem = {
@@ -65,10 +66,13 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     <aside className="flex h-full w-[200px] flex-col border-r border-[#E5E5E5] bg-white">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00D632]">
-          <span className="text-xs font-bold text-white">T</span>
-        </div>
-        <span className="text-sm font-semibold text-[#171717]">TOF</span>
+        <Image
+          src="/logo-dark.png"
+          alt="TheOyinbooke Foundation"
+          width={120}
+          height={120}
+          className="h-8 w-auto"
+        />
         {onClose && (
           <button
             onClick={onClose}

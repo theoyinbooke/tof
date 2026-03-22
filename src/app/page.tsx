@@ -1,6 +1,7 @@
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 
 export default async function Home() {
   const { userId } = await auth();
@@ -14,14 +15,16 @@ export default async function Home() {
       <div className="flex w-full max-w-6xl flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         {/* Left — Copy & CTAs */}
         <div className="flex max-w-md flex-col items-center text-center lg:max-w-lg lg:items-start lg:text-left">
-          {/* Logo mark */}
-          <div className="mb-4 flex items-center gap-2.5 lg:mb-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#00D632]">
-              <span className="text-sm font-bold text-black">T</span>
-            </div>
-            <span className="text-sm font-semibold tracking-wide text-white/70">
-              TheOyinbooke Foundation
-            </span>
+          {/* Logo */}
+          <div className="mb-4 lg:mb-6">
+            <Image
+              src="/logo-white.png"
+              alt="TheOyinbooke Foundation"
+              width={180}
+              height={180}
+              className="h-12 w-auto sm:h-14"
+              priority
+            />
           </div>
 
           <h1 className="text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-5xl">
