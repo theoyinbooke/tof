@@ -5,10 +5,48 @@ import { internal } from "../../../../../convex/_generated/api";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
+type ClerkEmailAddress = {
+  id: string;
+  email_address: string;
+};
+
+type ClerkWebhookEvent = {
+  type: string;
+  data: Record<string, unknown>;
+};
+
+function extractUserFields(data: Record<string, unknown>) {
+  const clerkId = data.id as string;
+
+  const emailAddresses = data.email_addresses as ClerkEmailAddress[] | undefined;
+  const primaryEmailId = data.primary_email_address_id as string;
+  const primaryEmail =
+    emailAddresses?.find((e) => e.id === primaryEmailId)?.email_address ??
+    emailAddresses?.[0]?.email_address ??
+    "";
+
+  const firstName = (data.first_name as string) ?? "";
+  const lastName = (data.last_name as string) ?? "";
+  const name = [firstName, lastName].filter(Boolean).join(" ") || primaryEmail;
+
+  const avatarUrl = (data.image_url as string) || undefined;
+
+  return { clerkId, email: primaryEmail, name, avatarUrl };
+}
+
 export async function POST(req: Request) {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
     console.error("Missing CLERK_WEBHOOK_SECRET environment variable");
+    return NextResponse.json(
+      { error: "Server misconfigured" },
+      { status: 500 },
+    );
+  }
+
+  const deployKey = process.env.CONVEX_DEPLOY_KEY;
+  if (!deployKey) {
+    console.error("Missing CONVEX_DEPLOY_KEY for webhook handler");
     return NextResponse.json(
       { error: "Server misconfigured" },
       { status: 500 },
@@ -29,65 +67,38 @@ export async function POST(req: Request) {
 
   const body = await req.text();
 
-  let event: { type: string; data: Record<string, unknown> };
+  let event: ClerkWebhookEvent;
   try {
     const wh = new Webhook(webhookSecret);
     event = wh.verify(body, {
       "svix-id": svixId,
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
-    }) as typeof event;
+    }) as ClerkWebhookEvent;
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  // Handle the event
-  if (event.type === "user.created") {
-    const data = event.data;
-    const clerkId = data.id as string;
+  convex.setAdminAuth(deployKey);
 
-    // Extract primary email
-    const emailAddresses = data.email_addresses as Array<{
-      id: string;
-      email_address: string;
-    }>;
-    const primaryEmailId = data.primary_email_address_id as string;
-    const primaryEmail =
-      emailAddresses?.find((e) => e.id === primaryEmailId)?.email_address ??
-      emailAddresses?.[0]?.email_address ??
-      "";
-
-    const firstName = (data.first_name as string) ?? "";
-    const lastName = (data.last_name as string) ?? "";
-    const name = [firstName, lastName].filter(Boolean).join(" ") || primaryEmail;
-
-    const avatarUrl = (data.image_url as string) || undefined;
-
-    // Use admin auth to call the internal mutation
-    const deployKey = process.env.CONVEX_DEPLOY_KEY;
-    if (!deployKey) {
-      console.error("Missing CONVEX_DEPLOY_KEY for webhook handler");
-      return NextResponse.json(
-        { error: "Server misconfigured" },
-        { status: 500 },
-      );
-    }
-
-    convex.setAdminAuth(deployKey);
+  // Handle user.created — create user in Convex
+  // Handle user.updated — create if missing (failed webhook recovery) or update
+  if (event.type === "user.created" || event.type === "user.updated") {
+    const fields = extractUserFields(event.data);
 
     try {
-      const userId = await convex.mutation(internal.users.createFromWebhook, {
-        clerkId,
-        email: primaryEmail,
-        name,
-        avatarUrl,
-      });
-      console.log(`Webhook: created/found Convex user ${userId} for Clerk user ${clerkId}`);
+      const userId = await convex.mutation(
+        internal.users.createOrUpdateFromWebhook,
+        fields,
+      );
+      console.log(
+        `Webhook [${event.type}]: synced Convex user ${userId} for Clerk user ${fields.clerkId}`,
+      );
     } catch (err) {
-      console.error("Failed to create user from webhook:", err);
+      console.error(`Failed to sync user from ${event.type} webhook:`, err);
       return NextResponse.json(
-        { error: "Failed to create user" },
+        { error: "Failed to sync user" },
         { status: 500 },
       );
     }

@@ -304,9 +304,10 @@ export const toggleUserActive = mutation({
   },
 });
 
-// ─── Webhook-based user creation (called from Next.js API route) ───
+// ─── Webhook-based user sync (called from Next.js API route) ───
+// Handles both user.created and user.updated events from Clerk.
 
-export const createFromWebhook = internalMutation({
+export const createOrUpdateFromWebhook = internalMutation({
   args: {
     clerkId: v.string(),
     email: v.string(),
@@ -321,6 +322,12 @@ export const createFromWebhook = internalMutation({
       .unique();
 
     if (existing) {
+      // Update name, email, avatar if changed
+      const updates: Record<string, unknown> = { updatedAt: Date.now() };
+      if (args.name && args.name !== existing.name) updates.name = args.name;
+      if (args.email && args.email !== existing.email) updates.email = args.email;
+      if (args.avatarUrl && args.avatarUrl !== existing.avatarUrl) updates.avatarUrl = args.avatarUrl;
+      await ctx.db.patch(existing._id, updates);
       return existing._id;
     }
 
@@ -331,9 +338,10 @@ export const createFromWebhook = internalMutation({
       .unique();
 
     if (existingByEmail) {
-      // Update the existing record with the clerkId if missing
       await ctx.db.patch(existingByEmail._id, {
         clerkId: args.clerkId,
+        name: args.name || existingByEmail.name,
+        avatarUrl: args.avatarUrl ?? existingByEmail.avatarUrl,
         updatedAt: Date.now(),
       });
       return existingByEmail._id;
