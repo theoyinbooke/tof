@@ -310,6 +310,7 @@ export const toggleUserActive = mutation({
 export const createOrUpdateFromWebhook = internalMutation({
   args: {
     clerkId: v.string(),
+    tokenIdentifier: v.string(),
     email: v.string(),
     name: v.string(),
     avatarUrl: v.optional(v.string()),
@@ -347,14 +348,9 @@ export const createOrUpdateFromWebhook = internalMutation({
       return existingByEmail._id;
     }
 
-    // Build tokenIdentifier to match what Clerk JWT provides
-    // Format: "{issuer_domain}|{clerkId}"
-    const issuerDomain = process.env.CLERK_JWT_ISSUER_DOMAIN ?? "";
-    const tokenIdentifier = `${issuerDomain}|${args.clerkId}`;
-
     const userId = await ctx.db.insert("users", {
       clerkId: args.clerkId,
-      tokenIdentifier,
+      tokenIdentifier: args.tokenIdentifier,
       email: args.email,
       name: args.name,
       role: "beneficiary",

@@ -47,7 +47,11 @@ function extractUserFields(data: Record<string, unknown>) {
 
   const avatarUrl = (data.image_url as string) || undefined;
 
-  return { clerkId, email: primaryEmail, name, avatarUrl };
+  // Build tokenIdentifier to match what Clerk JWT provides: "{issuer_domain}|{clerkId}"
+  const issuerDomain = process.env.CLERK_JWT_ISSUER_DOMAIN ?? "";
+  const tokenIdentifier = `${issuerDomain}|${clerkId}`;
+
+  return { clerkId, tokenIdentifier, email: primaryEmail, name, avatarUrl };
 }
 
 export async function POST(req: Request) {
