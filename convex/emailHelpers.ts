@@ -4,6 +4,7 @@
 import { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { createNotification } from "./notifications";
 
 /**
  * Schedule an email to be sent to a user.
@@ -61,9 +62,6 @@ export async function notifyWithEmail(
     templateData?: Record<string, string>;
   },
 ) {
-  // Import createNotification dynamically to avoid circular dependency
-  const { createNotification } = await import("./notifications");
-
   const notificationId = await createNotification(ctx, {
     userId: args.userId,
     type: args.type,

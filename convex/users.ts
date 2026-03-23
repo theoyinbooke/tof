@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { logAuditEvent } from "./auditLogs";
 import { notifyWithEmail } from "./emailHelpers";
 import { requireUser } from "./authHelpers";
@@ -304,3 +304,74 @@ export const toggleUserActive = mutation({
   },
 });
 
+// ─── Webhook-based user creation (called from Next.js API route) ───
+
+export const createFromWebhook = internalMutation({
+  args: {
+    clerkId: v.string(),
+    email: v.string(),
+    name: v.string(),
+    avatarUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if user already exists by clerkId
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    if (existing) {
+      return existing._id;
+    }
+
+    // Also check by email to avoid duplicates
+    const existingByEmail = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .unique();
+
+    if (existingByEmail) {
+      // Update the existing record with the clerkId if missing
+      await ctx.db.patch(existingByEmail._id, {
+        clerkId: args.clerkId,
+        updatedAt: Date.now(),
+      });
+      return existingByEmail._id;
+    }
+
+    // Build tokenIdentifier to match what Clerk JWT provides
+    // Format: "{issuer_domain}|{clerkId}"
+    const issuerDomain = process.env.CLERK_JWT_ISSUER_DOMAIN ?? "";
+    const tokenIdentifier = `${issuerDomain}|${args.clerkId}`;
+
+    const userId = await ctx.db.insert("users", {
+      clerkId: args.clerkId,
+      tokenIdentifier,
+      email: args.email,
+      name: args.name,
+      role: "beneficiary",
+      isActive: true,
+      avatarUrl: args.avatarUrl,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    // Send welcome email
+    if (args.email) {
+      await notifyWithEmail(ctx, {
+        userId,
+        type: "welcome",
+        title: "Welcome to TheOyinbooke Foundation",
+        body: "Welcome! Get started by completing your profile.",
+        eventKey: `welcome:${userId}`,
+        linkUrl: "/dashboard",
+        emailType: "welcome",
+        templateData: {
+          recipientName: args.name || "there",
+        },
+      });
+    }
+
+    return userId;
+  },
+});
