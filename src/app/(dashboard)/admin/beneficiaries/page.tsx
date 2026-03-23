@@ -50,7 +50,8 @@ export default function AdminBeneficiariesPage() {
         method: "POST",
       });
 
-      const payload = (await response.json()) as {
+      const responseText = await response.text();
+      let payload: {
         error?: string;
         syncSummary?: { synced: number; failed: number };
         reconcileSummary?: {
@@ -58,10 +59,20 @@ export default function AdminBeneficiariesPage() {
           deletedProfiles?: Array<unknown>;
           renamedUsers?: Array<unknown>;
         };
-      };
+      } = {};
+
+      if (responseText) {
+        try {
+          payload = JSON.parse(responseText) as typeof payload;
+        } catch {
+          payload = { error: responseText };
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(payload.error || "Failed to reconcile beneficiaries.");
+        throw new Error(
+          payload.error || responseText || "Failed to reconcile beneficiaries.",
+        );
       }
 
       const createdCount = payload.reconcileSummary?.createdProfiles?.length ?? 0;

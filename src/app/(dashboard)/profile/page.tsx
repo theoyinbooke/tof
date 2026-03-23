@@ -5,6 +5,10 @@ import { api } from "../../../../convex/_generated/api";
 import { useState, useEffect } from "react";
 import { Select, type SelectOption } from "@/components/ui/select";
 import {
+  ErrorToast,
+  SuccessToast,
+} from "@/components/ui/mutation-error-toast";
+import {
   getNigeriaLgaOptions,
   NIGERIAN_STATE_OPTIONS,
   NIGERIA_STATE_TO_LGAS,
@@ -21,6 +25,8 @@ export default function ProfilePage() {
     "personal",
   );
   const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Personal info form state
   const [personal, setPersonal] = useState({
@@ -94,6 +100,38 @@ export default function ProfilePage() {
         userId: user._id,
         ...personal,
       });
+      const response = await fetch("/api/profile/sync-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: personal.firstName,
+          lastName: personal.lastName,
+        }),
+      });
+
+      const responseText = await response.text();
+      let payload: { error?: string } = {};
+      if (responseText) {
+        try {
+          payload = JSON.parse(responseText) as { error?: string };
+        } catch {
+          payload = { error: responseText };
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to sync name to Clerk.");
+      }
+
+      setSuccessMsg("Personal information updated.");
+      setTimeout(() => setSuccessMsg(null), 5000);
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : "Failed to update personal information.",
+      );
+      setTimeout(() => setErrorMsg(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -110,6 +148,15 @@ export default function ProfilePage() {
         familySize: family.familySize ? parseInt(family.familySize) : undefined,
         householdIncome: family.householdIncome,
       });
+      setSuccessMsg("Family context updated.");
+      setTimeout(() => setSuccessMsg(null), 5000);
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : "Failed to update family context.",
+      );
+      setTimeout(() => setErrorMsg(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -118,6 +165,18 @@ export default function ProfilePage() {
   if (!canManageBeneficiaryProfile) {
     return (
       <div className="p-6 lg:p-10">
+        {successMsg && (
+          <SuccessToast
+            message={successMsg}
+            onClose={() => setSuccessMsg(null)}
+          />
+        )}
+        {errorMsg && (
+          <ErrorToast
+            message={errorMsg}
+            onClose={() => setErrorMsg(null)}
+          />
+        )}
         <h1 className="text-xl font-semibold text-[#171717]">Profile</h1>
         <div className="mt-6 rounded-xl border border-[#E5E5E5] bg-white p-6">
           <h2 className="text-base font-semibold text-[#171717]">{user.name}</h2>
@@ -136,6 +195,18 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="p-6 lg:p-10">
+        {successMsg && (
+          <SuccessToast
+            message={successMsg}
+            onClose={() => setSuccessMsg(null)}
+          />
+        )}
+        {errorMsg && (
+          <ErrorToast
+            message={errorMsg}
+            onClose={() => setErrorMsg(null)}
+          />
+        )}
         <h1 className="text-xl font-semibold text-[#171717]">Profile</h1>
         <div className="mt-8 flex flex-col items-center justify-center rounded-xl border border-[#E5E5E5] bg-white py-16">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#E6FBF0]">
@@ -159,6 +230,18 @@ export default function ProfilePage() {
 
   return (
     <div className="p-6 lg:p-10">
+      {successMsg && (
+        <SuccessToast
+          message={successMsg}
+          onClose={() => setSuccessMsg(null)}
+        />
+      )}
+      {errorMsg && (
+        <ErrorToast
+          message={errorMsg}
+          onClose={() => setErrorMsg(null)}
+        />
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">Profile</h1>

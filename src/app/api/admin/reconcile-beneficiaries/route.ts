@@ -106,7 +106,12 @@ export async function POST() {
   } catch (error) {
     console.error("Failed to reconcile beneficiaries:", error);
     return NextResponse.json(
-      { error: "Failed to reconcile beneficiaries" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to reconcile beneficiaries",
+      },
       { status: 500 },
     );
   }
