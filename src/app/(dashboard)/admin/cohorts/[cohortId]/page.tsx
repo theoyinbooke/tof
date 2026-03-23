@@ -445,7 +445,7 @@ function OverviewTab({
           <h3 className="text-sm font-semibold text-[#171717] mb-4">
             Pillar Distribution
           </h3>
-          <div className="space-y-3">
+          <div className="flex items-end justify-around gap-4 h-48">
             {pillarEntries.map(([pillar, count]) => {
               const config = PILLAR_CONFIG[pillar] || {
                 label: pillar,
@@ -453,24 +453,25 @@ function OverviewTab({
               };
               const percentage = Math.round((count / maxPillarCount) * 100);
               return (
-                <div key={pillar}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-[#262626]">
-                      {config.label}
-                    </span>
-                    <span className="text-xs text-[#737373]">
-                      {count} session{count !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-[#F0F0F0]">
+                <div
+                  key={pillar}
+                  className="flex flex-col items-center gap-2 flex-1"
+                >
+                  <span className="text-xs font-semibold text-[#262626]">
+                    {count}
+                  </span>
+                  <div className="w-full max-w-[48px] rounded-t-md bg-[#F0F0F0] h-full relative">
                     <div
-                      className="h-2 rounded-full transition-all"
+                      className="absolute bottom-0 left-0 right-0 rounded-t-md transition-all"
                       style={{
-                        width: `${percentage}%`,
+                        height: `${percentage}%`,
                         backgroundColor: config.color,
                       }}
                     />
                   </div>
+                  <span className="text-[10px] font-medium text-[#737373] text-center leading-tight">
+                    {config.label}
+                  </span>
                 </div>
               );
             })}

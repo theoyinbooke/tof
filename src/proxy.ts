@@ -20,7 +20,8 @@ export default clerkMiddleware(async (auth, req) => {
 export const config = {
   matcher: [
     "/",
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|png|jpg|jpeg|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
+    "/((?!api/mcp(?:/|$)|_next|[^?]*\\.(?:html?|css|js(?!on)|png|jpg|jpeg|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/api/(?!mcp(?:/|$)).*",
+    "/trpc(.*)",
   ],
 };
