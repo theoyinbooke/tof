@@ -1,9 +1,25 @@
 import { Webhook } from "svix";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
+import type {
+  FunctionReference,
+  FunctionReturnType,
+  OptionalRestArgs,
+} from "convex/server";
 import { internal } from "../../../../../convex/_generated/api";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+// ConvexHttpClient with admin auth can call internal functions
+type AdminConvexClient = ConvexHttpClient & {
+  setAdminAuth(token: string): void;
+  mutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
+    mutation: Mutation,
+    ...args: OptionalRestArgs<Mutation>
+  ): Promise<FunctionReturnType<Mutation>>;
+};
+
+const convex = new ConvexHttpClient(
+  process.env.NEXT_PUBLIC_CONVEX_URL!,
+) as AdminConvexClient;
 
 type ClerkEmailAddress = {
   id: string;
