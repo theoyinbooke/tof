@@ -12,48 +12,48 @@ export default async function Home() {
 
   return (
     <main className="flex h-dvh w-full items-center justify-center overflow-hidden bg-[#0A0A0A] px-5 sm:px-8">
-      <div className="flex w-full max-w-6xl flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
+      <div className="flex w-full max-w-6xl flex-col items-center gap-3 sm:gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         {/* Left — Copy & CTAs */}
         <div className="flex max-w-md flex-col items-center text-center lg:max-w-lg lg:items-start lg:text-left">
           {/* Logo */}
-          <div className="mb-4 lg:mb-6">
+          <div className="mb-2 sm:mb-4 lg:mb-6">
             <Image
               src="/logo-white.png"
               alt="TheOyinbooke Foundation"
               width={800}
               height={500}
-              className="h-10 w-auto sm:h-12"
+              className="h-8 w-auto sm:h-12"
               priority
             />
           </div>
 
-          <h1 className="text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <h1 className="text-2xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-5xl">
             Empowering futures
             <br />
             <span className="text-[#00D632]">through education.</span>
           </h1>
 
-          <p className="mt-3 text-sm leading-relaxed text-white/50 sm:mt-4 sm:text-base lg:max-w-sm">
+          <p className="mt-2 text-sm leading-relaxed text-white/50 sm:mt-4 sm:text-base lg:max-w-sm">
             A holistic platform connecting beneficiaries, mentors, and
             facilitators to build lasting educational impact.
           </p>
 
-          <div className="mt-6 flex gap-3 sm:mt-8">
+          <div className="relative z-10 mt-4 flex gap-3 sm:mt-8">
             <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
-              <button className="h-11 rounded-full bg-[#00D632] px-6 text-sm font-semibold text-black transition-all hover:brightness-110 active:scale-[0.97]">
+              <button className="h-10 rounded-full bg-[#00D632] px-5 text-sm font-semibold text-black transition-all hover:brightness-110 active:scale-[0.97] sm:h-11 sm:px-6">
                 Get Started
               </button>
             </SignUpButton>
 
             <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-              <button className="h-11 rounded-full border border-white/15 px-6 text-sm font-semibold text-white transition-all hover:border-white/30 hover:bg-white/5 active:scale-[0.97]">
+              <button className="h-10 rounded-full border border-white/15 px-5 text-sm font-semibold text-white transition-all hover:border-white/30 hover:bg-white/5 active:scale-[0.97] sm:h-11 sm:px-6">
                 Sign In
               </button>
             </SignInButton>
           </div>
 
           {/* Trust bar */}
-          <div className="mt-6 flex items-center gap-4 text-[11px] font-medium tracking-wide text-white/30 uppercase sm:mt-8">
+          <div className="mt-4 flex items-center gap-4 text-[11px] font-medium tracking-wide text-white/30 uppercase sm:mt-8">
             <span className="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <circle cx="6" cy="6" r="5" stroke="#00D632" strokeWidth="1.5" />
@@ -81,7 +81,7 @@ export default async function Home() {
         </div>
 
         {/* Right — Animated SVG */}
-        <div className="relative flex w-full max-w-[280px] items-center justify-center sm:max-w-xs lg:max-w-sm">
+        <div className="pointer-events-none relative flex w-full max-w-[180px] items-center justify-center sm:max-w-xs lg:max-w-sm">
           <NetworkSVG />
         </div>
       </div>

@@ -7,6 +7,8 @@ import {
 } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { logAuditEvent } from "./auditLogs";
+import { canMessageUser } from "./messagingAccess";
+import { createNotification } from "./notifications";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,7 +32,7 @@ async function findUserByEmail(
     .first();
 }
 
-async function requireActor(ctx: MutationCtx, actorEmail: string) {
+async function requireActor(ctx: McpCtx, actorEmail: string) {
   const actor = await findUserByEmail(ctx, actorEmail);
   if (!actor) {
     throw new Error(`No user found for actor email: ${actorEmail}`);
@@ -66,8 +68,169 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   closed: [],
 };
 
+async function createSupportRequestForBeneficiary(
+  ctx: MutationCtx,
+  actor: Doc<"users">,
+  args: {
+    beneficiaryUserId: Id<"users">;
+    title: string;
+    description: string;
+    category: Doc<"supportRequests">["category"];
+    amountRequested?: number;
+  },
+) {
+  const beneficiary = await ctx.db.get(args.beneficiaryUserId);
+  if (!beneficiary) throw new Error("Beneficiary not found");
+  if (beneficiary.role !== "beneficiary") {
+    throw new Error("Support requests can only be assigned to beneficiaries");
+  }
+  if (!beneficiary.isActive) {
+    throw new Error("Beneficiary is inactive");
+  }
+
+  const now = Date.now();
+  const requestId = await ctx.db.insert("supportRequests", {
+    beneficiaryUserId: beneficiary._id,
+    title: args.title,
+    description: args.description,
+    category: args.category,
+    amountRequested: args.amountRequested,
+    status: "submitted",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await ctx.db.insert("supportRequestEvents", {
+    requestId,
+    action: "support request created by admin",
+    fromStatus: "draft",
+    toStatus: "submitted",
+    performedBy: actor._id,
+    note: `Created by admin ${actor.name} for ${beneficiary.name}.`,
+    createdAt: now,
+  });
+
+  await logAuditEvent(ctx, {
+    userId: actor._id,
+    action: "create_support_request",
+    resource: "supportRequests",
+    resourceId: requestId,
+    details: `Created support request "${args.title}" for ${beneficiary.name}`,
+  });
+
+  return { requestId };
+}
+
+async function transitionSupportRequestAsActor(
+  ctx: MutationCtx,
+  actor: Doc<"users">,
+  request: Doc<"supportRequests">,
+  toStatus: Doc<"supportRequests">["status"],
+  note?: string,
+) {
+  const allowed = VALID_TRANSITIONS[request.status] || [];
+  if (!allowed.includes(toStatus)) {
+    throw new Error(
+      `Invalid transition from "${request.status}" to "${toStatus}". Allowed: ${allowed.join(", ") || "none"}.`,
+    );
+  }
+
+  const now = Date.now();
+  await ctx.db.insert("supportRequestEvents", {
+    requestId: request._id,
+    action: `${request.status} → ${toStatus}`,
+    fromStatus: request.status,
+    toStatus,
+    performedBy: actor._id,
+    note,
+    createdAt: now,
+  });
+
+  await ctx.db.patch(request._id, {
+    status: toStatus,
+    updatedAt: now,
+  });
+
+  await logAuditEvent(ctx, {
+    userId: actor._id,
+    action: "transition_support_request",
+    resource: "supportRequests",
+    resourceId: request._id,
+    details: `Transitioned "${request.title}" from ${request.status} to ${toStatus}`,
+  });
+
+  return {
+    requestId: request._id,
+    fromStatus: request.status,
+    toStatus,
+  };
+}
+
+async function findExistingDirectConversation(
+  ctx: McpCtx,
+  userId: Id<"users">,
+  otherUserId: Id<"users">,
+) {
+  const participations = await ctx.db
+    .query("conversationParticipants")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(100);
+
+  for (const participation of participations) {
+    const conversation = await ctx.db.get(participation.conversationId);
+    if (!conversation || conversation.type !== "direct") continue;
+
+    const otherParticipation = await ctx.db
+      .query("conversationParticipants")
+      .withIndex("by_userId_and_conversationId", (q) =>
+        q.eq("userId", otherUserId).eq("conversationId", participation.conversationId),
+      )
+      .take(1);
+
+    if (otherParticipation.length > 0) {
+      return conversation;
+    }
+  }
+
+  return null;
+}
+
+async function getOrCreateDirectConversation(
+  ctx: MutationCtx,
+  actor: Doc<"users">,
+  otherUserId: Id<"users">,
+) {
+  const existing = await findExistingDirectConversation(ctx, actor._id, otherUserId);
+  if (existing) {
+    return existing._id;
+  }
+
+  const now = Date.now();
+  const conversationId = await ctx.db.insert("conversations", {
+    type: "direct",
+    createdBy: actor._id,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await ctx.db.insert("conversationParticipants", {
+    conversationId,
+    userId: actor._id,
+    lastReadAt: now,
+    joinedAt: now,
+  });
+  await ctx.db.insert("conversationParticipants", {
+    conversationId,
+    userId: otherUserId,
+    lastReadAt: now,
+    joinedAt: now,
+  });
+
+  return conversationId;
+}
+
 // ===========================================================================
-// READ QUERIES (12)
+// READ QUERIES (15)
 // ===========================================================================
 
 // 1. getPlatformDashboard
@@ -625,7 +788,79 @@ export const listSupportRequests = internalQuery({
   },
 });
 
-// 9. getFinancialSummary
+// 9. getSupportRequestDetails
+export const getSupportRequestDetails = internalQuery({
+  args: {
+    requestId: v.id("supportRequests"),
+  },
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId);
+    if (!request) {
+      return null;
+    }
+
+    const beneficiary = await ctx.db.get(request.beneficiaryUserId);
+    const events = await ctx.db
+      .query("supportRequestEvents")
+      .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+      .take(100);
+    const disbursements = await ctx.db
+      .query("disbursements")
+      .withIndex("by_requestId", (q) => q.eq("requestId", args.requestId))
+      .take(50);
+
+    return {
+      request: {
+        id: request._id,
+        title: request.title,
+        description: request.description,
+        category: request.category,
+        status: request.status,
+        amountRequested: request.amountRequested ?? null,
+        createdAt: request.createdAt,
+        updatedAt: request.updatedAt,
+      },
+      beneficiary: beneficiary
+        ? {
+            id: beneficiary._id,
+            name: beneficiary.name,
+            email: beneficiary.email,
+            role: beneficiary.role,
+            isActive: beneficiary.isActive,
+          }
+        : null,
+      events: await Promise.all(
+        events.map(async (event) => ({
+          id: event._id,
+          action: event.action,
+          fromStatus: event.fromStatus,
+          toStatus: event.toStatus,
+          note: event.note ?? null,
+          performedById: event.performedBy,
+          performedByName: await getUserName(ctx, event.performedBy),
+          createdAt: event.createdAt,
+        })),
+      ),
+      disbursements: await Promise.all(
+        disbursements.map(async (disbursement) => ({
+          id: disbursement._id,
+          amount: disbursement.amount,
+          bankReference: disbursement.bankReference ?? null,
+          transferDate: disbursement.transferDate ?? null,
+          evidenceDueDate: disbursement.evidenceDueDate ?? null,
+          evidenceStatus: disbursement.evidenceStatus,
+          notes: disbursement.notes ?? null,
+          disbursedById: disbursement.disbursedBy,
+          disbursedByName: await getUserName(ctx, disbursement.disbursedBy),
+          createdAt: disbursement.createdAt,
+          updatedAt: disbursement.updatedAt,
+        })),
+      ),
+    };
+  },
+});
+
+// 10. getFinancialSummary
 export const getFinancialSummary = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -665,7 +900,7 @@ export const getFinancialSummary = internalQuery({
   },
 });
 
-// 10. listFlaggedAssessments
+// 11. listFlaggedAssessments
 export const listFlaggedAssessments = internalQuery({
   args: {
     flagFilter: v.optional(v.string()),
@@ -729,7 +964,7 @@ export const listFlaggedAssessments = internalQuery({
   },
 });
 
-// 11. listSafeguardingActions
+// 12. listSafeguardingActions
 export const listSafeguardingActions = internalQuery({
   args: {
     status: v.optional(v.string()),
@@ -782,7 +1017,7 @@ export const listSafeguardingActions = internalQuery({
   },
 });
 
-// 12. listAuditLogs
+// 13. listAuditLogs
 export const listAuditLogs = internalQuery({
   args: {
     action: v.optional(v.string()),
@@ -816,8 +1051,178 @@ export const listAuditLogs = internalQuery({
   },
 });
 
+// 14. listMessageConversations
+export const listMessageConversations = internalQuery({
+  args: {
+    actorEmail: v.string(),
+    role: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const limit = args.limit ?? DEFAULT_LIMIT;
+    const participations = await ctx.db
+      .query("conversationParticipants")
+      .withIndex("by_userId", (q) => q.eq("userId", actor._id))
+      .take(Math.max(limit * 3, 100));
+
+    const conversations = [];
+
+    for (const participation of participations) {
+      const conversation = await ctx.db.get(participation.conversationId);
+      if (!conversation) continue;
+
+      const participants = await ctx.db
+        .query("conversationParticipants")
+        .withIndex("by_conversationId", (q) =>
+          q.eq("conversationId", conversation._id),
+        )
+        .take(20);
+      const otherParticipant = participants.find((p) => p.userId !== actor._id);
+      const otherUser = otherParticipant
+        ? await ctx.db.get(otherParticipant.userId)
+        : null;
+
+      if (args.role && otherUser?.role !== args.role) {
+        continue;
+      }
+
+      const recentMessages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversationId_and_createdAt", (q) =>
+          q.eq("conversationId", conversation._id),
+        )
+        .order("desc")
+        .take(50);
+
+      const unreadCount = recentMessages.filter(
+        (message) =>
+          !message.isDeleted &&
+          message.createdAt > participation.lastReadAt &&
+          message.senderId !== actor._id,
+      ).length;
+
+      conversations.push({
+        id: conversation._id,
+        type: conversation.type,
+        name: conversation.name ?? null,
+        lastMessagePreview: conversation.lastMessagePreview ?? null,
+        lastMessageAt: conversation.lastMessageAt ?? null,
+        unreadCount,
+        participantCount: participants.length,
+        otherUser: otherUser
+          ? {
+              id: otherUser._id,
+              name: otherUser.name,
+              email: otherUser.email,
+              avatarUrl: otherUser.avatarUrl,
+              role: otherUser.role,
+              isActive: otherUser.isActive,
+            }
+          : null,
+      });
+    }
+
+    conversations.sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0));
+    return conversations.slice(0, limit);
+  },
+});
+
+// 15. getConversationMessages
+export const getConversationMessages = internalQuery({
+  args: {
+    actorEmail: v.string(),
+    conversationId: v.id("conversations"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const limit = args.limit ?? 100;
+    const participation = await ctx.db
+      .query("conversationParticipants")
+      .withIndex("by_userId_and_conversationId", (q) =>
+        q.eq("userId", actor._id).eq("conversationId", args.conversationId),
+      )
+      .take(1);
+
+    if (participation.length === 0) {
+      throw new Error("Actor is not a participant in this conversation");
+    }
+
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    const participants = await ctx.db
+      .query("conversationParticipants")
+      .withIndex("by_conversationId", (q) => q.eq("conversationId", args.conversationId))
+      .take(20);
+    const participantUsers = await Promise.all(
+      participants.map(async (participant) => await ctx.db.get(participant.userId)),
+    );
+
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversationId_and_createdAt", (q) =>
+        q.eq("conversationId", args.conversationId),
+      )
+      .order("desc")
+      .take(limit);
+
+    const enrichedMessages = await Promise.all(
+      messages.map(async (message) => {
+        const sender = await ctx.db.get(message.senderId);
+        let fileUrl: string | null = null;
+        if (message.fileStorageId) {
+          fileUrl = await ctx.storage.getUrl(message.fileStorageId);
+        }
+
+        return {
+          id: message._id,
+          senderId: message.senderId,
+          senderName: sender?.name ?? "Unknown",
+          senderEmail: sender?.email ?? null,
+          senderRole: sender?.role ?? null,
+          type: message.type,
+          body: message.body,
+          fileName: message.fileName ?? null,
+          fileType: message.fileType ?? null,
+          fileSize: message.fileSize ?? null,
+          fileUrl,
+          linkUrl: message.linkUrl ?? null,
+          isDeleted: message.isDeleted,
+          isOwnMessage: message.senderId === actor._id,
+          createdAt: message.createdAt,
+        };
+      }),
+    );
+
+    return {
+      conversation: {
+        id: conversation._id,
+        type: conversation.type,
+        name: conversation.name ?? null,
+        lastMessagePreview: conversation.lastMessagePreview ?? null,
+        lastMessageAt: conversation.lastMessageAt ?? null,
+      },
+      participants: participantUsers
+        .filter((user): user is Doc<"users"> => user !== null)
+        .map((user) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          isActive: user.isActive,
+        })),
+      messages: enrichedMessages.reverse(),
+    };
+  },
+});
+
 // ===========================================================================
-// WRITE MUTATIONS (13)
+// WRITE MUTATIONS (15)
 // ===========================================================================
 
 // 13. updateUserRole
@@ -1228,47 +1633,45 @@ export const transitionSupportRequest = internalMutation({
 
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new Error("Support request not found");
+    return await transitionSupportRequestAsActor(
+      ctx,
+      actor,
+      request,
+      args.toStatus as Doc<"supportRequests">["status"],
+      args.note,
+    );
+  },
+});
 
-    const allowed = VALID_TRANSITIONS[request.status] || [];
-    if (!allowed.includes(args.toStatus)) {
-      throw new Error(
-        `Invalid transition from "${request.status}" to "${args.toStatus}". Allowed: ${allowed.join(", ") || "none"}.`,
-      );
-    }
-
-    // Record event
-    await ctx.db.insert("supportRequestEvents", {
-      requestId: args.requestId,
-      action: `${request.status} → ${args.toStatus}`,
-      fromStatus: request.status,
-      toStatus: args.toStatus,
-      performedBy: actor._id,
-      note: args.note,
-      createdAt: Date.now(),
-    });
-
-    await ctx.db.patch(args.requestId, {
-      status: args.toStatus as Doc<"supportRequests">["status"],
-      updatedAt: Date.now(),
-    });
-
-    await logAuditEvent(ctx, {
-      userId: actor._id,
-      action: "transition_support_request",
-      resource: "supportRequests",
-      resourceId: args.requestId,
-      details: `Transitioned "${request.title}" from ${request.status} to ${args.toStatus}`,
-    });
-
+// 23. createSupportRequest
+export const createSupportRequest = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    beneficiaryUserId: v.id("users"),
+    title: v.string(),
+    description: v.string(),
+    category: v.union(
+      v.literal("tuition"),
+      v.literal("books"),
+      v.literal("transport"),
+      v.literal("medical"),
+      v.literal("accommodation"),
+      v.literal("other"),
+    ),
+    amountRequested: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const result = await createSupportRequestForBeneficiary(ctx, actor, args);
     return {
-      requestId: args.requestId,
-      fromStatus: request.status,
-      toStatus: args.toStatus,
+      requestId: result.requestId,
+      beneficiaryUserId: args.beneficiaryUserId,
+      status: "submitted" as const,
     };
   },
 });
 
-// 23. assignMentor
+// 24. assignMentor
 export const assignMentor = internalMutation({
   args: {
     actorEmail: v.string(),
@@ -1321,7 +1724,7 @@ export const assignMentor = internalMutation({
   },
 });
 
-// 24. resolveSafeguardingAction
+// 25. resolveSafeguardingAction
 export const resolveSafeguardingAction = internalMutation({
   args: {
     actorEmail: v.string(),
@@ -1365,7 +1768,7 @@ export const resolveSafeguardingAction = internalMutation({
   },
 });
 
-// 25. createDisbursement
+// 26. createDisbursement
 export const createDisbursement = internalMutation({
   args: {
     actorEmail: v.string(),
@@ -1425,5 +1828,96 @@ export const createDisbursement = internalMutation({
     });
 
     return { disbursementId };
+  },
+});
+
+// 27. sendDirectMessage
+export const sendDirectMessage = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    otherUserId: v.id("users"),
+    body: v.string(),
+    type: v.optional(
+      v.union(v.literal("text"), v.literal("link"), v.literal("video_link")),
+    ),
+    linkUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const otherUser = await ctx.db.get(args.otherUserId);
+    if (!otherUser || !otherUser.isActive) {
+      throw new Error("Recipient not found or is inactive");
+    }
+
+    const allowed = await canMessageUser(ctx, actor, args.otherUserId);
+    if (!allowed) {
+      throw new Error("Actor is not allowed to message this user");
+    }
+
+    const conversationId = await getOrCreateDirectConversation(
+      ctx,
+      actor,
+      args.otherUserId,
+    );
+
+    const participation = await ctx.db
+      .query("conversationParticipants")
+      .withIndex("by_userId_and_conversationId", (q) =>
+        q.eq("userId", actor._id).eq("conversationId", conversationId),
+      )
+      .take(1);
+
+    if (participation.length === 0) {
+      throw new Error("Actor is not a participant in this conversation");
+    }
+
+    const now = Date.now();
+    const type = args.type ?? "text";
+    const messageId = await ctx.db.insert("messages", {
+      conversationId,
+      senderId: actor._id,
+      type,
+      body: args.body,
+      linkUrl: args.linkUrl,
+      isDeleted: false,
+      createdAt: now,
+    });
+
+    const preview =
+      args.body.length > 80 ? `${args.body.slice(0, 80)}…` : args.body;
+
+    await ctx.db.patch(conversationId, {
+      lastMessagePreview: preview,
+      lastMessageAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(participation[0]._id, {
+      lastReadAt: now,
+    });
+
+    await createNotification(ctx, {
+      userId: otherUser._id,
+      type: "new_message",
+      title: `New message from ${actor.name}`,
+      body: preview,
+      eventKey: `new_message:${conversationId}:${messageId}`,
+      linkUrl: `/messages?c=${conversationId}`,
+    });
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "send_message",
+      resource: "messages",
+      resourceId: messageId,
+      details: `Sent ${type} message to ${otherUser.name}`,
+    });
+
+    return {
+      conversationId,
+      messageId,
+      recipientUserId: otherUser._id,
+      type,
+    };
   },
 });

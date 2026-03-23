@@ -35,6 +35,8 @@ import type * as materials from "../materials.js";
 import type * as mcp from "../mcp.js";
 import type * as mentorAssignments from "../mentorAssignments.js";
 import type * as mentorNotes from "../mentorNotes.js";
+import type * as messaging from "../messaging.js";
+import type * as messagingAccess from "../messagingAccess.js";
 import type * as notifications from "../notifications.js";
 import type * as safeguarding from "../safeguarding.js";
 import type * as sessions from "../sessions.js";
@@ -77,6 +79,8 @@ declare const fullApi: ApiFromModules<{
   mcp: typeof mcp;
   mentorAssignments: typeof mentorAssignments;
   mentorNotes: typeof mentorNotes;
+  messaging: typeof messaging;
+  messagingAccess: typeof messagingAccess;
   notifications: typeof notifications;
   safeguarding: typeof safeguarding;
   sessions: typeof sessions;

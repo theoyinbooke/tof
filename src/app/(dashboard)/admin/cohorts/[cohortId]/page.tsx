@@ -445,7 +445,7 @@ function OverviewTab({
           <h3 className="text-sm font-semibold text-[#171717] mb-4">
             Pillar Distribution
           </h3>
-          <div className="flex items-end justify-around gap-4 h-48">
+          <div className="flex items-end justify-around gap-4 pt-2">
             {pillarEntries.map(([pillar, count]) => {
               const config = PILLAR_CONFIG[pillar] || {
                 label: pillar,
@@ -460,12 +460,16 @@ function OverviewTab({
                   <span className="text-xs font-semibold text-[#262626]">
                     {count}
                   </span>
-                  <div className="w-full max-w-[48px] rounded-t-md bg-[#F0F0F0] h-full relative">
+                  <div
+                    className="w-full max-w-[48px] rounded-t-md bg-[#F0F0F0]"
+                    style={{ height: 140 }}
+                  >
                     <div
-                      className="absolute bottom-0 left-0 right-0 rounded-t-md transition-all"
+                      className="w-full rounded-t-md transition-all"
                       style={{
                         height: `${percentage}%`,
                         backgroundColor: config.color,
+                        marginTop: `${100 - percentage}%`,
                       }}
                     />
                   </div>

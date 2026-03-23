@@ -20,6 +20,7 @@ const sharedTopItems: NavItem[] = [
 const sharedBottomItems: NavItem[] = [
   { href: "/profile", label: "Profile", icon: ProfileIcon },
   { href: "/library", label: "Library", icon: LibraryIcon },
+  { href: "/messages", label: "Messages", icon: MessagesIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
 ];
 
@@ -58,6 +59,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const currentUser = useQuery(api.users.currentUser);
   const unreadCount = useQuery(
     api.notifications.getUnreadCount,
+    currentUser ? {} : "skip",
+  );
+  const unreadMessageCount = useQuery(
+    api.messaging.getTotalUnreadCount,
     currentUser ? {} : "skip",
   );
 
@@ -104,7 +109,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {/* Dashboard */}
         {sharedTopItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} />
+          <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} unreadMessageCount={unreadMessageCount} />
         ))}
 
         {/* Role-specific section */}
@@ -115,7 +120,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
               {role === "admin" ? "Admin" : role === "facilitator" ? "Facilitator" : role === "mentor" ? "Mentorship" : "My Journey"}
             </p>
             {(roleNavItems[role] ?? []).map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} />
+              <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} unreadMessageCount={unreadMessageCount} />
             ))}
           </>
         )}
@@ -123,7 +128,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         {/* Shared bottom items */}
         <div className="my-2 border-t border-[#E5E5E5]" />
         {sharedBottomItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} />
+          <NavLink key={item.href} item={item} pathname={pathname} onClose={onClose} unreadCount={unreadCount} unreadMessageCount={unreadMessageCount} />
         ))}
       </nav>
 
@@ -195,6 +200,23 @@ function LibraryIcon({ active }: { active?: boolean }) {
   );
 }
 
+function MessagesIcon({ active }: { active?: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
+      fill="none"
+      stroke={active ? "#171717" : "#525252"}
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M16 12a2 2 0 0 1-2 2H6l-4 3V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
 function NotificationsIcon({ active }: { active?: boolean }) {
   return (
     <svg
@@ -218,14 +240,24 @@ function NavLink({
   pathname,
   onClose,
   unreadCount,
+  unreadMessageCount,
 }: {
   item: NavItem;
   pathname: string;
   onClose?: () => void;
   unreadCount?: number;
+  unreadMessageCount?: number;
 }) {
   const isActive =
     pathname === item.href || pathname.startsWith(item.href + "/");
+
+  const badgeCount =
+    item.href === "/notifications"
+      ? unreadCount
+      : item.href === "/messages"
+        ? unreadMessageCount
+        : undefined;
+
   return (
     <Link
       href={item.href}
@@ -238,13 +270,11 @@ function NavLink({
     >
       <item.icon active={isActive} />
       <span className="flex-1">{item.label}</span>
-      {item.href === "/notifications" &&
-        unreadCount !== undefined &&
-        unreadCount > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00D632] px-1 text-[9px] font-bold text-white">
-            {unreadCount}
-          </span>
-        )}
+      {badgeCount !== undefined && badgeCount > 0 && (
+        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00D632] px-1 text-[9px] font-bold text-white">
+          {badgeCount}
+        </span>
+      )}
     </Link>
   );
 }

@@ -12,8 +12,8 @@ import {
   SESSION_STATUSES,
   COHORT_MEMBERSHIP_STATUSES,
   SUPPORT_REQUEST_STATUSES,
+  SUPPORT_CATEGORIES,
   SAFEGUARDING_STATUSES,
-  FLAG_BEHAVIORS,
 } from "./constants";
 
 const DEFAULT_VERSION = "0.1.0";
@@ -52,8 +52,9 @@ const roleEnum = z.enum(ROLES);
 const sessionStatusEnum = z.enum(SESSION_STATUSES);
 const cohortMembershipStatusEnum = z.enum(COHORT_MEMBERSHIP_STATUSES);
 const supportRequestStatusEnum = z.enum(SUPPORT_REQUEST_STATUSES);
+const supportCategoryEnum = z.enum(SUPPORT_CATEGORIES);
 const safeguardingStatusEnum = z.enum(SAFEGUARDING_STATUSES);
-const flagBehaviorEnum = z.enum(FLAG_BEHAVIORS);
+const messageTypeEnum = z.enum(["text", "link", "video_link"]);
 
 // ---------------------------------------------------------------------------
 // Environment helpers
@@ -410,7 +411,50 @@ function registerReadTools(server: McpServer) {
     },
   );
 
-  // 9. get_financial_summary
+  // 9. get_support_request_details
+  server.registerTool(
+    "get_support_request_details",
+    {
+      description:
+        "Return a full support request record including beneficiary details, event history, and disbursements.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        requestId: z.string().describe("The Convex support request ID"),
+      },
+    },
+    async ({ requestId }) => {
+      const client = createClient();
+      const details = await client.query(internal.mcp.getSupportRequestDetails, {
+        requestId: requestId as never,
+      });
+
+      if (!details) {
+        return jsonResult({ request: null });
+      }
+
+      return jsonResult({
+        request: {
+          ...details.request,
+          createdAt: toIso(details.request.createdAt),
+          updatedAt: toIso(details.request.updatedAt),
+        },
+        beneficiary: details.beneficiary,
+        events: details.events.map((event) => ({
+          ...event,
+          createdAt: toIso(event.createdAt),
+        })),
+        disbursements: details.disbursements.map((disbursement) => ({
+          ...disbursement,
+          transferDate: toIso(disbursement.transferDate),
+          evidenceDueDate: toIso(disbursement.evidenceDueDate),
+          createdAt: toIso(disbursement.createdAt),
+          updatedAt: toIso(disbursement.updatedAt),
+        })),
+      });
+    },
+  );
+
+  // 10. get_financial_summary
   server.registerTool(
     "get_financial_summary",
     {
@@ -426,7 +470,7 @@ function registerReadTools(server: McpServer) {
     },
   );
 
-  // 10. list_flagged_assessments
+  // 11. list_flagged_assessments
   server.registerTool(
     "list_flagged_assessments",
     {
@@ -457,7 +501,7 @@ function registerReadTools(server: McpServer) {
     },
   );
 
-  // 11. list_safeguarding_actions
+  // 12. list_safeguarding_actions
   server.registerTool(
     "list_safeguarding_actions",
     {
@@ -488,7 +532,7 @@ function registerReadTools(server: McpServer) {
     },
   );
 
-  // 12. list_audit_logs
+  // 13. list_audit_logs
   server.registerTool(
     "list_audit_logs",
     {
@@ -516,6 +560,75 @@ function registerReadTools(server: McpServer) {
         logs: logs.map((l) => ({
           ...l,
           createdAt: toIso(l.createdAt),
+        })),
+      });
+    },
+  );
+
+  // 14. list_message_conversations
+  server.registerTool(
+    "list_message_conversations",
+    {
+      description:
+        "List the admin actor's message conversations, optionally filtered by the other participant's role.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        role: roleEnum
+          .optional()
+          .describe("Filter by the other participant's role, for example beneficiary"),
+        limit: z.number().int().min(1).max(100).default(50),
+      },
+    },
+    async ({ role, limit }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const conversations = await client.query(internal.mcp.listMessageConversations, {
+        actorEmail,
+        role,
+        limit,
+      });
+
+      return jsonResult({
+        actorEmail,
+        conversations: conversations.map((conversation) => ({
+          ...conversation,
+          lastMessageAt: toIso(conversation.lastMessageAt),
+        })),
+      });
+    },
+  );
+
+  // 15. get_conversation_messages
+  server.registerTool(
+    "get_conversation_messages",
+    {
+      description:
+        "Read messages from a specific conversation available to the admin actor.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        conversationId: z.string().describe("The Convex conversation ID"),
+        limit: z.number().int().min(1).max(200).default(100),
+      },
+    },
+    async ({ conversationId, limit }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const conversation = await client.query(internal.mcp.getConversationMessages, {
+        actorEmail,
+        conversationId: conversationId as never,
+        limit,
+      });
+
+      return jsonResult({
+        actorEmail,
+        conversation: {
+          ...conversation.conversation,
+          lastMessageAt: toIso(conversation.conversation.lastMessageAt),
+        },
+        participants: conversation.participants,
+        messages: conversation.messages.map((message) => ({
+          ...message,
+          createdAt: toIso(message.createdAt),
         })),
       });
     },
@@ -823,7 +936,112 @@ function registerWriteTools(server: McpServer) {
     },
   );
 
-  // 22. transition_support_request
+  // 22. create_support_request
+  server.registerTool(
+    "create_support_request",
+    {
+      description:
+        "Create a support request for a beneficiary as the configured admin actor.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        beneficiaryUserId: z
+          .string()
+          .describe("The Convex user ID of the beneficiary"),
+        title: z.string().min(1).describe("Support request title"),
+        description: z.string().min(1).describe("Support request description"),
+        category: supportCategoryEnum.describe("Support request category"),
+        amountRequested: z
+          .number()
+          .positive()
+          .optional()
+          .describe("Requested amount, if applicable"),
+      },
+    },
+    async ({
+      beneficiaryUserId,
+      title,
+      description,
+      category,
+      amountRequested,
+    }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.createSupportRequest, {
+        actorEmail,
+        beneficiaryUserId: beneficiaryUserId as never,
+        title,
+        description,
+        category,
+        amountRequested,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // 23. update_support_request_status
+  server.registerTool(
+    "update_support_request_status",
+    {
+      description:
+        "Update a support request status using the platform's valid transition rules.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        requestId: z.string().describe("The Convex support request ID"),
+        toStatus: supportRequestStatusEnum.describe("Target status"),
+        note: z
+          .string()
+          .optional()
+          .describe("Optional note explaining the status change"),
+      },
+    },
+    async ({ requestId, toStatus, note }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(
+        internal.mcp.transitionSupportRequest,
+        {
+          actorEmail,
+          requestId: requestId as never,
+          toStatus,
+          note,
+        },
+      );
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // 24. approve_support_request
+  server.registerTool(
+    "approve_support_request",
+    {
+      description:
+        "Approve a support request. Use this when the request is already under review.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        requestId: z.string().describe("The Convex support request ID"),
+        note: z
+          .string()
+          .optional()
+          .describe("Optional approval note"),
+      },
+    },
+    async ({ requestId, note }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(
+        internal.mcp.transitionSupportRequest,
+        {
+          actorEmail,
+          requestId: requestId as never,
+          toStatus: "approved",
+          note,
+        },
+      );
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // 25. transition_support_request
   server.registerTool(
     "transition_support_request",
     {
@@ -855,7 +1073,7 @@ function registerWriteTools(server: McpServer) {
     },
   );
 
-  // 23. assign_mentor
+  // 26. assign_mentor
   server.registerTool(
     "assign_mentor",
     {
@@ -881,7 +1099,7 @@ function registerWriteTools(server: McpServer) {
     },
   );
 
-  // 24. resolve_safeguarding_action
+  // 27. resolve_safeguarding_action
   server.registerTool(
     "resolve_safeguarding_action",
     {
@@ -917,7 +1135,7 @@ function registerWriteTools(server: McpServer) {
     },
   );
 
-  // 25. create_disbursement
+  // 28. create_disbursement
   server.registerTool(
     "create_disbursement",
     {
@@ -961,6 +1179,40 @@ function registerWriteTools(server: McpServer) {
         transferDate: parseIsoToEpoch(transferDateIso),
         evidenceDueDate: parseIsoToEpoch(evidenceDueDateIso),
         notes,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // 29. send_direct_message
+  server.registerTool(
+    "send_direct_message",
+    {
+      description:
+        "Send a direct message from the configured admin actor to a user, creating the conversation if needed.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        otherUserId: z.string().describe("The Convex user ID of the recipient"),
+        body: z.string().min(1).describe("Message body"),
+        type: messageTypeEnum
+          .optional()
+          .describe("Message type. Defaults to text."),
+        linkUrl: z
+          .string()
+          .url()
+          .optional()
+          .describe("Optional link URL for link or video_link messages"),
+      },
+    },
+    async ({ otherUserId, body, type, linkUrl }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.sendDirectMessage, {
+        actorEmail,
+        otherUserId: otherUserId as never,
+        body,
+        type,
+        linkUrl,
       });
       return jsonResult({ ...result, actorEmail });
     },

@@ -560,4 +560,47 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_action", ["action"])
     .index("by_resource", ["resource"]),
+
+  // ─── Messaging ───
+
+  conversations: defineTable({
+    type: v.union(v.literal("direct"), v.literal("group")),
+    name: v.optional(v.string()),
+    lastMessagePreview: v.optional(v.string()),
+    lastMessageAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_lastMessageAt", ["lastMessageAt"]),
+
+  conversationParticipants: defineTable({
+    conversationId: v.id("conversations"),
+    userId: v.id("users"),
+    lastReadAt: v.number(),
+    joinedAt: v.number(),
+  })
+    .index("by_conversationId", ["conversationId"])
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_conversationId", ["userId", "conversationId"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    senderId: v.id("users"),
+    type: v.union(
+      v.literal("text"),
+      v.literal("file"),
+      v.literal("link"),
+      v.literal("video_link"),
+    ),
+    body: v.string(),
+    fileStorageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    fileType: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    linkUrl: v.optional(v.string()),
+    isDeleted: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_conversationId", ["conversationId"])
+    .index("by_conversationId_and_createdAt", ["conversationId", "createdAt"]),
 });

@@ -30,6 +30,7 @@ const roleTabs: Record<string, Tab[]> = {
 };
 
 const sharedEndTabs: Tab[] = [
+  { href: "/messages", label: "Chat", icon: ChatBubbleIcon },
   { href: "/notifications", label: "Alerts", icon: BellIcon },
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
@@ -159,6 +160,14 @@ function NoteIcon({ active }: { active?: boolean }) {
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#00D632" : "#9CA3AF"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 3h16v18H4V3z" />
       <path d="M8 8h8M8 12h8M8 16h4" />
+    </svg>
+  );
+}
+
+function ChatBubbleIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#00D632" : "#9CA3AF"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

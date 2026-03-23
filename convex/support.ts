@@ -96,6 +96,67 @@ export const create = mutation({
   },
 });
 
+export const createForBeneficiary = mutation({
+  args: {
+    beneficiaryUserId: v.id("users"),
+    title: v.string(),
+    description: v.string(),
+    category: categoryValidator,
+    amountRequested: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const beneficiary = await ctx.db.get(args.beneficiaryUserId);
+    if (!beneficiary) {
+      throw new Error("Beneficiary not found.");
+    }
+    if (beneficiary.role !== "beneficiary") {
+      throw new Error("Support requests can only be assigned to beneficiaries.");
+    }
+
+    const requestId = await ctx.db.insert("supportRequests", {
+      beneficiaryUserId: beneficiary._id,
+      title: args.title,
+      description: args.description,
+      category: args.category,
+      amountRequested: args.amountRequested,
+      status: "submitted",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await ctx.db.insert("supportRequestEvents", {
+      requestId,
+      action: "support request created by admin",
+      fromStatus: "draft",
+      toStatus: "submitted",
+      performedBy: admin._id,
+      note: `Created by admin ${admin.name} for ${beneficiary.name}.`,
+      createdAt: Date.now(),
+    });
+
+    await notifyWithEmail(ctx, {
+      userId: beneficiary._id,
+      type: "support_request_created_for_you",
+      title: "A support request has been created for you",
+      body: `A support request titled "${args.title}" has been created on your behalf.`,
+      eventKey: `support_created_for_you:${requestId}`,
+      linkUrl: `/beneficiary/support/${requestId}`,
+      emailType: "support-request-received",
+      templateData: {
+        recipientName: beneficiary.name,
+        requestTitle: args.title,
+        requestCategory: args.category,
+        requestAmount: args.amountRequested
+          ? formatNaira(args.amountRequested)
+          : "",
+      },
+    });
+
+    return requestId;
+  },
+});
+
 export const transition = mutation({
   args: {
     requestId: v.id("supportRequests"),
