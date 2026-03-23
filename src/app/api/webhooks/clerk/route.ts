@@ -1,20 +1,14 @@
 import { Webhook } from "svix";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import type {
-  FunctionReference,
-  FunctionReturnType,
-  OptionalRestArgs,
-} from "convex/server";
-import { internal } from "../../../../../convex/_generated/api";
 
-// ConvexHttpClient with admin auth can call internal functions
 type AdminConvexClient = ConvexHttpClient & {
   setAdminAuth(token: string): void;
-  mutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
-    mutation: Mutation,
-    ...args: OptionalRestArgs<Mutation>
-  ): Promise<FunctionReturnType<Mutation>>;
+  function: (
+    name: string,
+    componentPath: string | undefined,
+    args: unknown,
+  ) => Promise<unknown>;
 };
 
 const convex = new ConvexHttpClient(
@@ -108,10 +102,11 @@ export async function POST(req: Request) {
     const fields = extractUserFields(event.data);
 
     try {
-      const userId = await convex.mutation(
-        internal.users.createOrUpdateFromWebhook,
+      const userId = (await convex.function(
+        "users:createOrUpdateFromWebhook",
+        undefined,
         fields,
-      );
+      )) as string;
       console.log(
         `Webhook [${event.type}]: synced Convex user ${userId} for Clerk user ${fields.clerkId}`,
       );

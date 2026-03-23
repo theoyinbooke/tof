@@ -1,8 +1,116 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
 import { logAuditEvent } from "./auditLogs";
 import { notifyWithEmail } from "./emailHelpers";
 import { requireUser } from "./authHelpers";
+
+type SyncedUserFields = {
+  clerkId: string;
+  tokenIdentifier: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+};
+
+function buildUserPatch(
+  existing: {
+    clerkId: string;
+    tokenIdentifier: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+  },
+  fields: SyncedUserFields,
+) {
+  const updates: Record<string, unknown> = {};
+
+  if (existing.clerkId !== fields.clerkId) {
+    updates.clerkId = fields.clerkId;
+  }
+  if (existing.tokenIdentifier !== fields.tokenIdentifier) {
+    updates.tokenIdentifier = fields.tokenIdentifier;
+  }
+  if (existing.email !== fields.email) {
+    updates.email = fields.email;
+  }
+  if (existing.name !== fields.name) {
+    updates.name = fields.name;
+  }
+  if (existing.avatarUrl !== fields.avatarUrl) {
+    updates.avatarUrl = fields.avatarUrl;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return null;
+  }
+
+  updates.updatedAt = Date.now();
+  return updates;
+}
+
+async function upsertUserFromFields(ctx: MutationCtx, fields: SyncedUserFields) {
+  const existingByTokenIdentifier = await ctx.db
+    .query("users")
+    .withIndex("by_tokenIdentifier", (q) =>
+      q.eq("tokenIdentifier", fields.tokenIdentifier),
+    )
+    .unique();
+
+  if (existingByTokenIdentifier) {
+    const updates = buildUserPatch(existingByTokenIdentifier, fields);
+    if (updates) {
+      await ctx.db.patch(existingByTokenIdentifier._id, updates);
+    }
+    return { userId: existingByTokenIdentifier._id, created: false };
+  }
+
+  const existingByClerkId = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", fields.clerkId))
+    .unique();
+
+  if (existingByClerkId) {
+    const updates = buildUserPatch(existingByClerkId, fields);
+    if (updates) {
+      await ctx.db.patch(existingByClerkId._id, updates);
+    }
+    return { userId: existingByClerkId._id, created: false };
+  }
+
+  if (fields.email) {
+    const existingByEmail = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", fields.email))
+      .unique();
+
+    if (existingByEmail) {
+      const updates = buildUserPatch(existingByEmail, fields) ?? {
+        updatedAt: Date.now(),
+      };
+      await ctx.db.patch(existingByEmail._id, updates);
+      return { userId: existingByEmail._id, created: false };
+    }
+  }
+
+  const userId = await ctx.db.insert("users", {
+    clerkId: fields.clerkId,
+    tokenIdentifier: fields.tokenIdentifier,
+    email: fields.email,
+    name: fields.name,
+    role: "beneficiary",
+    isActive: true,
+    avatarUrl: fields.avatarUrl,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  return { userId, created: true };
+}
 
 export const getOrCreateUser = mutation({
   args: {},
@@ -12,42 +120,17 @@ export const getOrCreateUser = mutation({
       throw new Error("Not authenticated");
     }
 
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (existing) {
-      const updates: Record<string, unknown> = { updatedAt: Date.now() };
-      if (identity.name && identity.name !== existing.name) {
-        updates.name = identity.name;
-      }
-      if (identity.email && identity.email !== existing.email) {
-        updates.email = identity.email;
-      }
-      if (identity.pictureUrl && identity.pictureUrl !== existing.avatarUrl) {
-        updates.avatarUrl = identity.pictureUrl;
-      }
-      await ctx.db.patch(existing._id, updates);
-      return existing._id;
-    }
-
-    const userId = await ctx.db.insert("users", {
+    const fields: SyncedUserFields = {
       clerkId: identity.subject,
       tokenIdentifier: identity.tokenIdentifier,
       email: identity.email || "",
       name: identity.name || "",
-      role: "beneficiary",
-      isActive: true,
       avatarUrl: identity.pictureUrl,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    };
+    const { userId, created } = await upsertUserFromFields(ctx, fields);
 
     // Send welcome email
-    if (identity.email) {
+    if (created && identity.email) {
       await notifyWithEmail(ctx, {
         userId,
         type: "welcome",
@@ -316,52 +399,10 @@ export const createOrUpdateFromWebhook = internalMutation({
     avatarUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check if user already exists by clerkId
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
-      .unique();
-
-    if (existing) {
-      // Update name, email, avatar if changed
-      const updates: Record<string, unknown> = { updatedAt: Date.now() };
-      if (args.name && args.name !== existing.name) updates.name = args.name;
-      if (args.email && args.email !== existing.email) updates.email = args.email;
-      if (args.avatarUrl && args.avatarUrl !== existing.avatarUrl) updates.avatarUrl = args.avatarUrl;
-      await ctx.db.patch(existing._id, updates);
-      return existing._id;
-    }
-
-    // Also check by email to avoid duplicates
-    const existingByEmail = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .unique();
-
-    if (existingByEmail) {
-      await ctx.db.patch(existingByEmail._id, {
-        clerkId: args.clerkId,
-        name: args.name || existingByEmail.name,
-        avatarUrl: args.avatarUrl ?? existingByEmail.avatarUrl,
-        updatedAt: Date.now(),
-      });
-      return existingByEmail._id;
-    }
-
-    const userId = await ctx.db.insert("users", {
-      clerkId: args.clerkId,
-      tokenIdentifier: args.tokenIdentifier,
-      email: args.email,
-      name: args.name,
-      role: "beneficiary",
-      isActive: true,
-      avatarUrl: args.avatarUrl,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    const { userId, created } = await upsertUserFromFields(ctx, args);
 
     // Send welcome email
-    if (args.email) {
+    if (created && args.email) {
       await notifyWithEmail(ctx, {
         userId,
         type: "welcome",
