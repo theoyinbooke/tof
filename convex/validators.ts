@@ -97,6 +97,7 @@ export const supportCategoryValidator = v.union(
   v.literal("transport"),
   v.literal("medical"),
   v.literal("accommodation"),
+  v.literal("upkeep"),
   v.literal("other"),
 );
 

@@ -180,7 +180,7 @@ function ResourcesTab({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="h-11 w-48 rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717] placeholder:text-[#D4D4D4]"
+            className="h-11 w-full sm:w-48 rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717] placeholder:text-[#D4D4D4]"
           />
         </div>
         <button

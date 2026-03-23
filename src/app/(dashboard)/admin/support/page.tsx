@@ -18,6 +18,7 @@ const CATEGORIES = [
   { label: "Transport", value: "transport" },
   { label: "Medical", value: "medical" },
   { label: "Accommodation", value: "accommodation" },
+  { label: "Upkeep", value: "upkeep" },
   { label: "Other", value: "other" },
 ] as const;
 
@@ -40,6 +41,7 @@ type Category =
   | "transport"
   | "medical"
   | "accommodation"
+  | "upkeep"
   | "other";
 
 export default function AdminSupportPage() {
@@ -49,7 +51,6 @@ export default function AdminSupportPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     beneficiaryUserId: "",
-    title: "",
     description: "",
     category: "other" as Category,
     amount: "",
@@ -66,7 +67,7 @@ export default function AdminSupportPage() {
   }
 
   const beneficiaryOptions = beneficiaries.map((beneficiary) => ({
-    label: `${beneficiary.name} (${beneficiary.email})`,
+    label: beneficiary.name,
     value: beneficiary._id,
   }));
 
@@ -76,14 +77,12 @@ export default function AdminSupportPage() {
     try {
       await createRequest({
         beneficiaryUserId: form.beneficiaryUserId as never,
-        title: form.title,
         description: form.description,
         category: form.category,
         amountRequested: form.amount ? parseFloat(form.amount) : undefined,
       });
       setForm({
         beneficiaryUserId: "",
-        title: "",
         description: "",
         category: "other",
         amount: "",
@@ -105,7 +104,7 @@ export default function AdminSupportPage() {
       )}
       {error && <ErrorToast message={error} onClose={clearError} />}
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-xl font-semibold text-[#171717]">Support Requests</h1>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -130,19 +129,12 @@ export default function AdminSupportPage() {
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-sm text-[#262626]">Title</label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="h-11 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]"
-              />
-            </div>
-            <div className="sm:col-span-2">
               <label className="mb-1.5 block text-sm text-[#262626]">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={3}
+                placeholder="Describe the support being assigned and any useful context."
                 className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm outline-none focus:border-[#171717]"
               />
             </div>
@@ -170,7 +162,6 @@ export default function AdminSupportPage() {
               disabled={
                 saving ||
                 !form.beneficiaryUserId ||
-                !form.title ||
                 !form.description
               }
               className="rounded-md bg-[#00D632] px-4 py-2 text-sm font-medium text-white hover:bg-[#00C02D] disabled:opacity-50"
@@ -200,9 +191,9 @@ export default function AdminSupportPage() {
           {requests.map((r, i) => (
             <Link key={r._id} href={`/admin/support/${r._id}`}
               className={`flex items-center justify-between px-4 py-3 text-sm hover:bg-[#F7F7F7] ${i > 0 ? "border-t border-[#F0F0F0]" : ""}`}>
-              <div>
-                <p className="font-medium text-[#171717]">{r.title}</p>
-                <p className="text-xs text-[#737373]">{r.beneficiary?.name || "Unknown"} · {r.category} {r.amountRequested ? `· ₦${r.amountRequested.toLocaleString()}` : ""}</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-[#171717] truncate">{r.title}</p>
+                <p className="text-xs text-[#737373] truncate">{r.beneficiary?.name || "Unknown"} · {r.category} {r.amountRequested ? `· ₦${r.amountRequested.toLocaleString()}` : ""}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[r.status] || "bg-[#F0F0F0] text-[#737373]"}`}>{r.status.replace(/_/g, " ")}</span>

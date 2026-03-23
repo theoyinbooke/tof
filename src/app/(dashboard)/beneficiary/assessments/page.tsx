@@ -38,20 +38,20 @@ export default function BeneficiaryAssessmentsPage() {
           {assignments.map((a) => (
             <Link key={a._id} href={`/beneficiary/assessments/${a._id}`}
               className="block rounded-xl border border-[#E5E5E5] bg-white p-4 transition-colors hover:border-[#D4D4D4]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-10 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
                     {a.template?.shortCode || "?"}
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-[#171717]">{a.template?.name || "Unknown"}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#171717] truncate">{a.template?.name || "Unknown"}</p>
                     <p className="text-xs text-[#737373]">
                       {a.template?.items.length || 0} questions
                       {a.dueDate ? ` · Due ${new Date(a.dueDate).toLocaleDateString()}` : ""}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[a.status] || "bg-[#F0F0F0] text-[#737373]"}`}>
                     {a.status.replace("_", " ")}
                   </span>

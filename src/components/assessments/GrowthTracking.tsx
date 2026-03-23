@@ -88,10 +88,10 @@ export function GrowthTracking({
   const unchanged = diff === 0;
 
   return (
-    <div className="rounded-xl border border-[#E5E5E5] bg-white p-6">
+    <div className="rounded-xl border border-[#E5E5E5] bg-white p-4 sm:p-6">
       <h3 className="text-sm font-semibold text-[#171717]">Your Growth</h3>
 
-      <div className="mt-4 h-48">
+      <div className="mt-4 h-48 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={dataPoints}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
@@ -134,7 +134,7 @@ export function GrowthTracking({
       </div>
 
       {/* Change indicator */}
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         {unchanged ? (
           <>
             <ArrowSideways />
@@ -219,10 +219,10 @@ function SubscaleGrowth({
           return (
             <div
               key={name}
-              className="flex items-center justify-between rounded-lg bg-[#F7F7F7] px-4 py-3"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 rounded-lg bg-[#F7F7F7] px-4 py-3"
             >
-              <div>
-                <p className="text-sm font-medium text-[#171717]">{name}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-[#171717] truncate">{name}</p>
                 <p className="text-xs text-[#737373]">
                   {displayPrev} &rarr; {displayCurrent}
                 </p>

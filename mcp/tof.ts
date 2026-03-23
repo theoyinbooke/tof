@@ -947,7 +947,11 @@ function registerWriteTools(server: McpServer) {
         beneficiaryUserId: z
           .string()
           .describe("The Convex user ID of the beneficiary"),
-        title: z.string().min(1).describe("Support request title"),
+        title: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Optional short title. If omitted, one is generated from category and description."),
         description: z.string().min(1).describe("Support request description"),
         category: supportCategoryEnum.describe("Support request category"),
         amountRequested: z

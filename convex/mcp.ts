@@ -73,7 +73,7 @@ async function createSupportRequestForBeneficiary(
   actor: Doc<"users">,
   args: {
     beneficiaryUserId: Id<"users">;
-    title: string;
+    title?: string;
     description: string;
     category: Doc<"supportRequests">["category"];
     amountRequested?: number;
@@ -88,10 +88,31 @@ async function createSupportRequestForBeneficiary(
     throw new Error("Beneficiary is inactive");
   }
 
+  const categoryLabels: Record<Doc<"supportRequests">["category"], string> = {
+    tuition: "Tuition",
+    books: "Books",
+    transport: "Transport",
+    medical: "Medical",
+    accommodation: "Accommodation",
+    upkeep: "Upkeep",
+    other: "Other",
+  };
+  const explicitTitle = args.title?.trim();
+  const normalizedDescription = args.description.trim().replace(/\s+/g, " ");
+  const title =
+    explicitTitle ||
+    (normalizedDescription
+      ? `${categoryLabels[args.category]}: ${
+          normalizedDescription.length > 48
+            ? `${normalizedDescription.slice(0, 48).trimEnd()}...`
+            : normalizedDescription
+        }`
+      : `${categoryLabels[args.category]} support`);
+
   const now = Date.now();
   const requestId = await ctx.db.insert("supportRequests", {
     beneficiaryUserId: beneficiary._id,
-    title: args.title,
+    title,
     description: args.description,
     category: args.category,
     amountRequested: args.amountRequested,
@@ -115,7 +136,7 @@ async function createSupportRequestForBeneficiary(
     action: "create_support_request",
     resource: "supportRequests",
     resourceId: requestId,
-    details: `Created support request "${args.title}" for ${beneficiary.name}`,
+    details: `Created support request "${title}" for ${beneficiary.name}`,
   });
 
   return { requestId };
@@ -1648,7 +1669,7 @@ export const createSupportRequest = internalMutation({
   args: {
     actorEmail: v.string(),
     beneficiaryUserId: v.id("users"),
-    title: v.string(),
+    title: v.optional(v.string()),
     description: v.string(),
     category: v.union(
       v.literal("tuition"),
@@ -1656,6 +1677,7 @@ export const createSupportRequest = internalMutation({
       v.literal("transport"),
       v.literal("medical"),
       v.literal("accommodation"),
+      v.literal("upkeep"),
       v.literal("other"),
     ),
     amountRequested: v.optional(v.number()),

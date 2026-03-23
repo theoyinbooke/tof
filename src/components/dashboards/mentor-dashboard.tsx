@@ -51,12 +51,12 @@ export function MentorDashboard() {
           <div className="mt-3 space-y-2">
             {mentees.slice(0, 5).map((m) => (
               <Link key={m.assignment._id} href={`/mentor/mentees/${m.beneficiary?._id}`}
-                className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-[#F7F7F7]">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
+                className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 hover:bg-[#F7F7F7]">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
                     {(m.beneficiary?.name?.[0] || "?").toUpperCase()}
                   </div>
-                  <span className="text-sm text-[#171717]">{m.beneficiary?.name || "Unknown"}</span>
+                  <span className="min-w-0 truncate text-sm text-[#171717]">{m.beneficiary?.name || "Unknown"}</span>
                 </div>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#D4D4D4" strokeWidth="1.5" strokeLinecap="round"><path d="M5 3l4 4-4 4" /></svg>
               </Link>

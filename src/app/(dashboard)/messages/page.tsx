@@ -86,7 +86,7 @@ export default function MessagesPage() {
 
       {/* Conversation view or empty state */}
       <div
-        className={`flex-1 ${
+        className={`min-w-0 flex-1 ${
           mobileShowConversation ? "block" : "hidden lg:block"
         }`}
       >

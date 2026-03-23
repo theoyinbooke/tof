@@ -101,6 +101,7 @@ export default defineSchema({
     address: v.optional(v.string()),
     stateOfOrigin: v.optional(v.string()),
     lga: v.optional(v.string()),
+    profilePictureStorageId: v.optional(v.id("_storage")),
     // Family context
     guardianName: v.optional(v.string()),
     guardianPhone: v.optional(v.string()),
@@ -193,6 +194,7 @@ export default defineSchema({
       v.literal("transport"),
       v.literal("medical"),
       v.literal("accommodation"),
+      v.literal("upkeep"),
       v.literal("other"),
     ),
     amountRequested: v.optional(v.number()),

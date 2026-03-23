@@ -38,6 +38,7 @@ import type * as mentorNotes from "../mentorNotes.js";
 import type * as messaging from "../messaging.js";
 import type * as messagingAccess from "../messagingAccess.js";
 import type * as notifications from "../notifications.js";
+import type * as reportAnalytics from "../reportAnalytics.js";
 import type * as safeguarding from "../safeguarding.js";
 import type * as sessions from "../sessions.js";
 import type * as sessions_seed from "../sessions/seed.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   messaging: typeof messaging;
   messagingAccess: typeof messagingAccess;
   notifications: typeof notifications;
+  reportAnalytics: typeof reportAnalytics;
   safeguarding: typeof safeguarding;
   sessions: typeof sessions;
   "sessions/seed": typeof sessions_seed;

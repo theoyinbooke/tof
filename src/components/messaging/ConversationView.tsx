@@ -110,8 +110,8 @@ export function ConversationView({
           </div>
         )}
 
-        <div>
-          <p className="text-sm font-semibold text-[#171717]">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-[#171717]">
             {otherUser?.name ?? "Unknown"}
           </p>
           <p className="text-[10px] text-[#737373]">

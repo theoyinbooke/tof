@@ -77,7 +77,7 @@ export default function FlaggedScoresPanel() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {/* Flag counts summary */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export default function FlaggedScoresPanel() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-white">
+        <div className="max-w-full overflow-hidden rounded-xl border border-[#E5E5E5] bg-white">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -162,7 +162,7 @@ export default function FlaggedScoresPanel() {
                         {score.userName}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="min-w-0 px-4 py-3">
                       <span className="rounded bg-[#F0F0F0] px-2 py-0.5 text-[10px] font-bold text-[#525252]">
                         {score.templateShortCode}
                       </span>

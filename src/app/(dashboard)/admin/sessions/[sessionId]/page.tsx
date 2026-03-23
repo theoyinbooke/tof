@@ -299,7 +299,7 @@ export default function AdminSessionDetailPage({
       </Link>
 
       {/* Header */}
-      <div className="mt-4 flex items-start justify-between gap-4">
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">
             #{session.sessionNumber} — {session.title}
@@ -442,7 +442,7 @@ export default function AdminSessionDetailPage({
 
       {/* B. Enrollment Management */}
       <div className="mt-6 rounded-xl border border-[#E5E5E5] bg-white p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#737373]">
             Roster ({enrollments.length} enrolled)
           </h2>
@@ -489,17 +489,17 @@ export default function AdminSessionDetailPage({
               return (
                 <div
                   key={e._id}
-                  className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-[#F0F0F0] px-3 py-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
                       {(e.user?.name?.[0] || "?").toUpperCase()}
                     </div>
-                    <span className="text-sm text-[#171717]">
+                    <span className="text-sm text-[#171717] truncate">
                       {e.user?.name || "Unknown"}
                     </span>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 shrink-0">
                     {(["present", "absent", "excused"] as const).map(
                       (status) => (
                         <button
@@ -543,10 +543,10 @@ export default function AdminSessionDetailPage({
               {sessionAssignments.map((a) => (
                 <div
                   key={a.templateId}
-                  className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-[#F0F0F0] px-3 py-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-50 text-xs font-medium text-blue-600">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-medium text-blue-600">
                       <svg
                         width="14"
                         height="14"
@@ -586,7 +586,7 @@ export default function AdminSessionDetailPage({
           <p className="mb-3 text-xs font-medium text-[#525252]">
             Assign New Assessment
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="sm:col-span-1">
               <Select
                 value={selectedTemplateId}

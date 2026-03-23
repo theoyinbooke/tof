@@ -130,7 +130,7 @@ export default function CohortDetailPage({
       </Link>
 
       {/* Tab bar */}
-      <div className="flex overflow-x-auto border-b border-[#E5E5E5] gap-0 -mx-6 px-6 lg:-mx-10 lg:px-10">
+      <div className="flex overflow-x-auto border-b border-[#E5E5E5] gap-0 -mx-6 px-6 lg:-mx-10 lg:px-10 max-w-[100vw]">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -383,7 +383,7 @@ function OverviewTab({
       )}
 
       {/* Stats cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-[#E5E5E5] bg-white p-6">
           <p className="text-2xl font-semibold text-[#171717]">
             {cohortStats.totalMembers}

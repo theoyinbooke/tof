@@ -57,7 +57,7 @@ export default function AdminAssessmentsPage() {
   return (
     <div className="p-6 lg:p-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-xl font-semibold text-[#171717]">Assessments</h1>
         {activeTab === "templates" && (
           <button
@@ -70,7 +70,7 @@ export default function AdminAssessmentsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-4 flex border-b border-[#E5E5E5]">
+      <div className="mt-4 flex overflow-x-auto border-b border-[#E5E5E5]">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -239,12 +239,12 @@ function TemplatesTab({
                 i > 0 ? "border-t border-[#F0F0F0]" : ""
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="flex h-8 w-10 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
                   {t.shortCode}
                 </span>
-                <div>
-                  <p className="font-medium text-[#171717]">{t.name}</p>
+                <div className="min-w-0">
+                  <p className="font-medium text-[#171717] truncate">{t.name}</p>
                   <p className="text-xs text-[#737373]">
                     v{t.version} · {t.items.length} items ·{" "}
                     {t.pillar?.replace("_", " ") || "No pillar"}

@@ -44,6 +44,7 @@ export const SUPPORT_CATEGORIES = [
   "transport",
   "medical",
   "accommodation",
+  "upkeep",
   "other",
 ] as const;
 

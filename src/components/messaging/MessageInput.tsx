@@ -118,7 +118,7 @@ export function MessageInput({
     <>
       {error && <ErrorToast message={error} onClose={clearError} />}
       <div className="border-t border-[#E5E5E5] bg-white px-3 py-2.5">
-        <div className="flex items-end gap-2">
+        <div className="flex min-w-0 items-end gap-2">
           {/* Attachment button */}
           <button
             onClick={() => fileInputRef.current?.click()}

@@ -289,7 +289,7 @@ export default function CalendarTab({ cohortId }: CalendarTabProps) {
   );
 
   return (
-    <div className="rounded-xl border border-[#E5E5E5] bg-white">
+    <div className="min-w-0 rounded-xl border border-[#E5E5E5] bg-white">
       {/* Header */}
       <div className="flex flex-col gap-3 border-b border-[#E5E5E5] p-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-[#171717]">
@@ -353,9 +353,9 @@ export default function CalendarTab({ cohortId }: CalendarTabProps) {
 
       {/* Month Grid View */}
       {viewMode === "month" && (
-        <div className="p-2 sm:p-4">
+        <div className="overflow-x-auto p-2 sm:p-4">
           {/* Day-of-week column headers */}
-          <div className="grid grid-cols-7 border-b border-[#E5E5E5] pb-2">
+          <div className="grid min-w-[280px] grid-cols-7 border-b border-[#E5E5E5] pb-2">
             {DAY_NAMES.map((day) => (
               <div
                 key={day}
@@ -367,7 +367,7 @@ export default function CalendarTab({ cohortId }: CalendarTabProps) {
           </div>
 
           {/* Day cells */}
-          <div className="grid grid-cols-7">
+          <div className="grid min-w-[280px] grid-cols-7">
             {calendarDays.map((calDay, idx) => {
               const key = dateKey(calDay.date);
               const daySessions = sessionsByDate.get(key) || [];
@@ -495,7 +495,7 @@ export default function CalendarTab({ cohortId }: CalendarTabProps) {
       {selectedSession && popoverPos && (
         <div
           ref={popoverRef}
-          className="fixed z-50 w-[calc(100vw-32px)] max-w-xs rounded-xl border border-[#E5E5E5] bg-white shadow-lg sm:w-80"
+          className="fixed z-50 w-[min(calc(100vw-2rem),20rem)] rounded-xl border border-[#E5E5E5] bg-white shadow-lg sm:w-80"
           style={{ top: popoverPos.top, left: popoverPos.left }}
         >
           {/* Header */}

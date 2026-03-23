@@ -138,14 +138,14 @@ export default function ProfilePage() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">Profile</h1>
           <p className="mt-1 text-sm text-[#737373]">
             {profile.profileCompletionPercent}% complete
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="h-2 w-24 overflow-hidden rounded-full bg-[#E5E5E5]">
             <div
               className="h-full rounded-full bg-[#00D632] transition-all"

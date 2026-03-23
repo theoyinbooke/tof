@@ -144,7 +144,7 @@ export default function AdminScoreDetailPage({
 
       {/* Header */}
       <div className="mt-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold text-[#171717]">
             {user?.name || "Unknown Beneficiary"}
           </h1>
@@ -332,7 +332,7 @@ export default function AdminScoreDetailPage({
                   </span>
                 </div>
                 {safeguardingAction.recommendedAction && (
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <span className="text-sm text-[#737373]">
                       Recommended Action
                     </span>
@@ -342,7 +342,7 @@ export default function AdminScoreDetailPage({
                   </div>
                 )}
                 {safeguardingAction.resolutionNote && (
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <span className="text-sm text-[#737373]">
                       Resolution Note
                     </span>

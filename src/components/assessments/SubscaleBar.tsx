@@ -28,9 +28,9 @@ export function SubscaleBar({ name, score, min, max }: SubscaleBarProps) {
 
   return (
     <div className="w-full">
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm text-[#262626]">{name}</span>
-        <span className="text-sm font-medium text-[#171717]">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-[#262626] min-w-0 truncate">{name}</span>
+        <span className="text-sm font-medium text-[#171717] shrink-0">
           {displayScore} / {displayMax}
         </span>
       </div>

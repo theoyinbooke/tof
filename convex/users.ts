@@ -4,7 +4,9 @@ import {
   mutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { logAuditEvent } from "./auditLogs";
 import { notifyWithEmail } from "./emailHelpers";
 import { requireUser } from "./authHelpers";
@@ -16,6 +18,37 @@ type SyncedUserFields = {
   name: string;
   avatarUrl?: string;
 };
+
+function formatProfileName(profile?: {
+  firstName?: string;
+  lastName?: string;
+} | null) {
+  return [profile?.firstName?.trim(), profile?.lastName?.trim()]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function enrichUserWithDisplayName(
+  ctx: QueryCtx | MutationCtx,
+  user: Doc<"users">,
+) {
+  if (user.role !== "beneficiary") {
+    return {
+      ...user,
+      displayName: user.name,
+    };
+  }
+
+  const profile = await ctx.db
+    .query("beneficiaryProfiles")
+    .withIndex("by_userId", (q) => q.eq("userId", user._id))
+    .unique();
+
+  return {
+    ...user,
+    displayName: formatProfileName(profile) || user.name,
+  };
+}
 
 function buildUserPatch(
   existing: {
@@ -208,14 +241,16 @@ export const listUsers = query({
       throw new Error("Only admins can list users.");
     }
 
-    if (args.role) {
-      return await ctx.db
+    const users = args.role
+      ? await ctx.db
         .query("users")
         .withIndex("by_role", (q) => q.eq("role", args.role!))
-        .take(200);
-    }
+        .take(200)
+      : await ctx.db.query("users").take(200);
 
-    return await ctx.db.query("users").take(200);
+    return await Promise.all(
+      users.map((user) => enrichUserWithDisplayName(ctx, user)),
+    );
   },
 });
 

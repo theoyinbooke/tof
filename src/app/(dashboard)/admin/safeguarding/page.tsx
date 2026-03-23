@@ -47,7 +47,7 @@ export default function AdminSafeguardingPage() {
       <h1 className="text-xl font-semibold text-[#171717]">Safeguarding</h1>
       <p className="mt-1 text-sm text-[#737373]">Flagged assessment scores requiring action.</p>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {(["all", "open", "in_progress", "resolved", "dismissed"] as const).map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${statusFilter === s ? "bg-[#171717] text-white" : "bg-[#F0F0F0] text-[#525252] hover:bg-[#E5E5E5]"}`}>
@@ -65,23 +65,23 @@ export default function AdminSafeguardingPage() {
         <div className="mt-4 space-y-3">
           {actions.map((a) => (
             <div key={a._id} className="rounded-xl border border-[#E5E5E5] bg-white p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${a.flagBehavior === "admin_review" ? "bg-red-50" : "bg-yellow-50"}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${a.flagBehavior === "admin_review" ? "bg-red-50" : "bg-yellow-50"}`}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={a.flagBehavior === "admin_review" ? "#EF4444" : "#F59E0B"} strokeWidth="1.5" strokeLinecap="round">
                       <path d="M7 1v5M7 9v1" />
                     </svg>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-[#171717]">{a.user?.name || "Unknown"}</p>
-                    <p className="text-xs text-[#737373]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#171717] truncate">{a.user?.name || "Unknown"}</p>
+                    <p className="text-xs text-[#737373] truncate">
                       {a.template?.shortCode || "?"} — Score: {a.score?.totalScore}
                       {a.score?.severityBand ? ` (${a.score.severityBand})` : ""}
                       {a.assignee ? ` · Assigned to ${a.assignee.name}` : ""}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[a.status]}`}>
                     {a.status.replace("_", " ")}
                   </span>

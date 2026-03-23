@@ -65,9 +65,9 @@ export default function MentorMenteeDetailPage({ params }: { params: Promise<{ b
           <h2 className="text-sm font-semibold text-red-600">Active Safeguarding Actions</h2>
           <div className="mt-2 space-y-1">
             {safeguardingActions.filter((a) => a.status === "open" || a.status === "in_progress").map((a) => (
-              <div key={a._id} className="flex items-center justify-between text-xs">
-                <span className="text-red-700">{a.template?.shortCode}: {a.score?.severityBand}</span>
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-600">{a.status.replace("_", " ")}</span>
+              <div key={a._id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate text-red-700">{a.template?.shortCode}: {a.score?.severityBand}</span>
+                <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-red-600">{a.status.replace("_", " ")}</span>
               </div>
             ))}
           </div>
@@ -101,8 +101,8 @@ export default function MentorMenteeDetailPage({ params }: { params: Promise<{ b
         {scoreSummary && scoreSummary.length > 0 ? (
           <div className="mt-4 space-y-2">
             {scoreSummary.map((s) => (
-              <div key={s._id} className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2">
-                <div>
+              <div key={s._id} className="flex items-center justify-between gap-2 rounded-lg border border-[#F0F0F0] px-3 py-2">
+                <div className="min-w-0">
                   <p className="text-sm text-[#171717]">Score: {s.totalScore}</p>
                   <p className="text-xs text-[#737373]">{new Date(s.scoredAt).toLocaleDateString()}</p>
                 </div>
@@ -144,7 +144,7 @@ export default function MentorMenteeDetailPage({ params }: { params: Promise<{ b
                     {n.visibility === "mentor_only" ? "Private" : "Shared"}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-[#262626] whitespace-pre-wrap">{n.content}</p>
+                <p className="mt-1 break-words text-sm text-[#262626] whitespace-pre-wrap">{n.content}</p>
                 <p className="mt-1 text-[10px] text-[#D4D4D4]">{new Date(n.createdAt).toLocaleString()}</p>
               </div>
             ))}

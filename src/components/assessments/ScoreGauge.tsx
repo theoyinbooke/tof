@@ -117,8 +117,8 @@ function RadialGauge({
   const fillPath = `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${filledX} ${filledY}`;
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size / 2 + 30 }}>
+    <div className="flex flex-col items-center max-w-full">
+      <div className="relative max-w-full" style={{ width: size, height: size / 2 + 30 }}>
         <svg
           width={size}
           height={size / 2 + 30}

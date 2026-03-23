@@ -57,7 +57,7 @@ export default function CohortAssessmentOverview() {
   } = overview;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
@@ -87,7 +87,7 @@ export default function CohortAssessmentOverview() {
       </div>
 
       {/* Per-Instrument Distribution Table */}
-      <div className="rounded-xl border border-[#E5E5E5] bg-white">
+      <div className="min-w-0 rounded-xl border border-[#E5E5E5] bg-white">
         <div className="border-b border-[#F0F0F0] px-6 py-4">
           <h2 className="text-sm font-semibold text-[#171717]">
             Instrument Overview
@@ -188,7 +188,7 @@ export default function CohortAssessmentOverview() {
                           </span>
                         )}
                         {totalInBands > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <div className="mt-1 flex flex-wrap gap-x-1 sm:gap-x-3 gap-y-0.5">
                             {Object.entries(stat.bandDistribution).map(
                               ([band, count]) => (
                                 <span

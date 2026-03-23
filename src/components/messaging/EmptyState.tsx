@@ -2,7 +2,7 @@
 
 export function EmptyState({ onNewMessage }: { onNewMessage: () => void }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4">
+    <div className="flex h-full min-w-0 flex-col items-center justify-center gap-4">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#F0F0F0]">
         <svg
           width="28"

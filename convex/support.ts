@@ -22,6 +22,7 @@ const categoryValidator = v.union(
   v.literal("transport"),
   v.literal("medical"),
   v.literal("accommodation"),
+  v.literal("upkeep"),
   v.literal("other"),
 );
 
@@ -38,18 +39,50 @@ const statusValidator = v.union(
   v.literal("closed"),
 );
 
+const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
+  tuition: "Tuition",
+  books: "Books",
+  transport: "Transport",
+  medical: "Medical",
+  accommodation: "Accommodation",
+  upkeep: "Upkeep",
+  other: "Other",
+};
+
+function deriveSupportTitle(args: {
+  title?: string;
+  category: string;
+  description: string;
+}) {
+  const explicitTitle = args.title?.trim();
+  if (explicitTitle) return explicitTitle;
+
+  const categoryLabel = SUPPORT_CATEGORY_LABELS[args.category] ?? "Support";
+  const condensedDescription = args.description.trim().replace(/\s+/g, " ");
+  if (!condensedDescription) {
+    return `${categoryLabel} support`;
+  }
+
+  const preview =
+    condensedDescription.length > 48
+      ? `${condensedDescription.slice(0, 48).trimEnd()}...`
+      : condensedDescription;
+  return `${categoryLabel}: ${preview}`;
+}
+
 export const create = mutation({
   args: {
-    title: v.string(),
+    title: v.optional(v.string()),
     description: v.string(),
     category: categoryValidator,
     amountRequested: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    const title = deriveSupportTitle(args);
     const requestId = await ctx.db.insert("supportRequests", {
       beneficiaryUserId: user._id,
-      title: args.title,
+      title,
       description: args.description,
       category: args.category,
       amountRequested: args.amountRequested,
@@ -63,13 +96,13 @@ export const create = mutation({
       userId: user._id,
       type: "support_request_received",
       title: "Support request submitted",
-      body: `Your request "${args.title}" has been submitted.`,
+      body: `Your request "${title}" has been submitted.`,
       eventKey: `support_received:${requestId}`,
       linkUrl: `/beneficiary/support/${requestId}`,
       emailType: "support-request-received",
       templateData: {
         recipientName: user.name,
-        requestTitle: args.title,
+        requestTitle: title,
         requestCategory: args.category,
         requestAmount: args.amountRequested ? formatNaira(args.amountRequested) : "",
       },
@@ -79,13 +112,13 @@ export const create = mutation({
     await notifyAdminsWithEmail(ctx, {
       type: "support_request_admin",
       title: `New support request from ${user.name}`,
-      body: `${user.name} submitted a support request: "${args.title}".`,
+      body: `${user.name} submitted a support request: "${title}".`,
       eventKeyPrefix: `support_admin:${requestId}`,
       linkUrl: `/admin/support/${requestId}`,
       emailType: "support-request-admin",
       templateData: {
         beneficiaryName: user.name,
-        requestTitle: args.title,
+        requestTitle: title,
         requestCategory: args.category,
         requestAmount: args.amountRequested ? formatNaira(args.amountRequested) : "",
         ctaUrl: `/admin/support/${requestId}`,
@@ -99,7 +132,7 @@ export const create = mutation({
 export const createForBeneficiary = mutation({
   args: {
     beneficiaryUserId: v.id("users"),
-    title: v.string(),
+    title: v.optional(v.string()),
     description: v.string(),
     category: categoryValidator,
     amountRequested: v.optional(v.number()),
@@ -113,10 +146,11 @@ export const createForBeneficiary = mutation({
     if (beneficiary.role !== "beneficiary") {
       throw new Error("Support requests can only be assigned to beneficiaries.");
     }
+    const title = deriveSupportTitle(args);
 
     const requestId = await ctx.db.insert("supportRequests", {
       beneficiaryUserId: beneficiary._id,
-      title: args.title,
+      title,
       description: args.description,
       category: args.category,
       amountRequested: args.amountRequested,
@@ -139,13 +173,13 @@ export const createForBeneficiary = mutation({
       userId: beneficiary._id,
       type: "support_request_created_for_you",
       title: "A support request has been created for you",
-      body: `A support request titled "${args.title}" has been created on your behalf.`,
+      body: `A support request titled "${title}" has been created on your behalf.`,
       eventKey: `support_created_for_you:${requestId}`,
       linkUrl: `/beneficiary/support/${requestId}`,
       emailType: "support-request-received",
       templateData: {
         recipientName: beneficiary.name,
-        requestTitle: args.title,
+        requestTitle: title,
         requestCategory: args.category,
         requestAmount: args.amountRequested
           ? formatNaira(args.amountRequested)

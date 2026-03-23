@@ -62,7 +62,7 @@ export function AdminDashboard() {
             <p className="text-xs font-medium uppercase tracking-wider text-[#737373]">Assessments</p>
             <Link href="/admin/assessments" className="text-xs text-[#737373] hover:text-[#171717]">Templates</Link>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-4">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xl font-semibold text-[#171717]">{supportRequests?.length ?? 0}</p>
               <p className="text-xs text-[#737373]">total requests</p>
@@ -104,9 +104,9 @@ export function AdminDashboard() {
           <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Evidence Overdue ({overdueEvidence.length})</p>
           <div className="mt-2 space-y-1">
             {overdueEvidence.slice(0, 5).map((d) => (
-              <Link key={d._id} href={`/admin/support/${d.requestId}`} className="flex items-center justify-between text-xs hover:text-red-800">
-                <span className="text-red-700">{d.beneficiary?.name} — ₦{d.amount.toLocaleString()}</span>
-                <span className="text-red-500">Due {d.evidenceDueDate ? new Date(d.evidenceDueDate).toLocaleDateString() : "N/A"}</span>
+              <Link key={d._id} href={`/admin/support/${d.requestId}`} className="flex items-center justify-between gap-2 text-xs hover:text-red-800">
+                <span className="text-red-700 min-w-0 truncate">{d.beneficiary?.name} — ₦{d.amount.toLocaleString()}</span>
+                <span className="text-red-500 shrink-0">Due {d.evidenceDueDate ? new Date(d.evidenceDueDate).toLocaleDateString() : "N/A"}</span>
               </Link>
             ))}
           </div>

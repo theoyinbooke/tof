@@ -150,23 +150,23 @@ export default function DocumentsPage() {
           {documents.map((doc, i) => (
             <div
               key={doc._id}
-              className={`flex items-center justify-between px-4 py-3 ${
+              className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 ${
                 i > 0 ? "border-t border-[#F0F0F0]" : ""
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-8 w-10 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="inline-flex h-8 w-10 shrink-0 items-center justify-center rounded bg-[#F0F0F0] text-[10px] font-bold text-[#525252]">
                   {FILE_TYPE_ICONS[doc.fileType] || "FILE"}
                 </span>
-                <div>
-                  <p className="text-sm font-medium text-[#171717]">{doc.fileName}</p>
-                  <p className="text-xs text-[#737373]">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[#171717] truncate">{doc.fileName}</p>
+                  <p className="text-xs text-[#737373] truncate">
                     {formatFileSize(doc.fileSize)} &middot; {doc.category.replace("_", " ")}
                     {doc.description && ` &middot; ${doc.description}`}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0 ml-11 sm:ml-0">
                 <span className="inline-flex items-center rounded-full border border-[#E5E5E5] px-2 py-0.5 text-[10px] text-[#737373]">
                   {doc.visibility.replace(/_/g, " ")}
                 </span>

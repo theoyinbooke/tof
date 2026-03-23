@@ -259,7 +259,14 @@ export const getTimeline = query({
   handler: async (ctx, args) => {
     await requireAdminOrMentor(ctx);
 
-    const events: Array<{ type: string; title: string; description: string; timestamp: number }> = [];
+    const events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      description: string;
+      timestamp: number;
+      metadata: Record<string, unknown>;
+    }> = [];
 
     // Attendance events
     const attendance = await ctx.db
@@ -270,10 +277,17 @@ export const getTimeline = query({
     for (const a of attendance) {
       const session = await ctx.db.get(a.sessionId);
       events.push({
+        id: `attendance-${a._id}`,
         type: "attendance",
         title: `Session ${session?.sessionNumber || "?"}: ${a.status}`,
         description: session?.title || "",
         timestamp: a.markedAt,
+        metadata: {
+          sessionNumber: session?.sessionNumber,
+          sessionTitle: session?.title,
+          status: a.status,
+          notes: a.notes,
+        },
       });
     }
 
@@ -285,10 +299,16 @@ export const getTimeline = query({
 
     for (const r of supportRequests) {
       events.push({
+        id: `support-${r._id}`,
         type: "support",
         title: `Support: ${r.title}`,
         description: `Status: ${r.status}`,
         timestamp: r.createdAt,
+        metadata: {
+          category: r.category,
+          status: r.status,
+          amountRequested: r.amountRequested,
+        },
       });
     }
 
@@ -301,10 +321,18 @@ export const getTimeline = query({
     for (const s of scores) {
       const template = await ctx.db.get(s.templateId);
       events.push({
+        id: `assessment-${s._id}`,
         type: "assessment",
         title: `Assessment: ${template?.shortCode || "?"}`,
         description: `Score: ${s.totalScore}${s.severityBand ? ` (${s.severityBand})` : ""}`,
         timestamp: s.scoredAt,
+        metadata: {
+          templateName: template?.name,
+          totalScore: s.totalScore,
+          severityBand: s.severityBand,
+          pillar: template?.pillar,
+          subscaleScores: s.subscaleScores,
+        },
       });
     }
 
@@ -316,10 +344,19 @@ export const getTimeline = query({
 
     for (const e of education) {
       events.push({
+        id: `education-${e._id}`,
         type: "education",
         title: `Education: ${e.stage.toUpperCase()}`,
         description: e.institutionName || "Record added",
         timestamp: e.createdAt,
+        metadata: {
+          stage: e.stage,
+          institutionName: e.institutionName,
+          isCurrent: e.isCurrent,
+          startYear: e.startYear,
+          endYear: e.endYear,
+          courseOfStudy: e.courseOfStudy,
+        },
       });
     }
 

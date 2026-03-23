@@ -47,7 +47,7 @@ export function ContactPicker({
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-[#E5E5E5] bg-white shadow-xl">
+      <div className="relative z-10 mx-4 w-full max-w-md rounded-xl border border-[#E5E5E5] bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#E5E5E5] px-4 py-3">
           <h2 className="text-sm font-semibold text-[#171717]">New Message</h2>

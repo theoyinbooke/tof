@@ -111,7 +111,7 @@ export default function AdminSupportDetailPage({ params }: { params: Promise<{ r
 
         {showDisburse && (
           <div className="mt-4 rounded-lg border border-[#E5E5E5] p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div><label className="mb-1 block text-xs text-[#737373]">Amount (₦)</label><input type="number" value={disburseForm.amount} onChange={(e) => setDisburseForm({ ...disburseForm, amount: e.target.value })} className="h-9 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]" /></div>
               <div><label className="mb-1 block text-xs text-[#737373]">Bank Reference</label><input value={disburseForm.bankReference} onChange={(e) => setDisburseForm({ ...disburseForm, bankReference: e.target.value })} className="h-9 w-full rounded-lg border border-[#E5E5E5] px-3 text-sm outline-none focus:border-[#171717]" /></div>
             </div>
@@ -147,9 +147,9 @@ export default function AdminSupportDetailPage({ params }: { params: Promise<{ r
           <div className="mt-4 space-y-2">
             {data.disbursements.map((d) => (
               <div key={d._id} className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[#171717]">₦{d.amount.toLocaleString()}</p>
-                  <p className="text-xs text-[#737373]">Ref: {d.bankReference || "N/A"} · {new Date(d.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-[#737373] truncate">Ref: {d.bankReference || "N/A"} · {new Date(d.createdAt).toLocaleDateString()}</p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${d.evidenceStatus === "verified" ? "bg-[#E6FBF0] text-[#00D632]" : d.evidenceStatus === "overdue" ? "bg-red-50 text-red-600" : "bg-[#F0F0F0] text-[#737373]"}`}>
                   {d.evidenceStatus.replace(/_/g, " ")}

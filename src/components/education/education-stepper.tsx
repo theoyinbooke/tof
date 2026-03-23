@@ -27,7 +27,7 @@ export function EducationStepper({
   const currentStage = records.find((r) => r.isCurrent)?.stage;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2">
       {STAGE_ORDER.map((stage) => {
         const isCompleted = completedStages.has(stage.key);
         const isCurrent = currentStage === stage.key;
@@ -37,7 +37,7 @@ export function EducationStepper({
           <button
             key={stage.key}
             onClick={() => onSelect(stage.key)}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs font-medium transition-colors ${
               isSelected
                 ? "bg-[#171717] text-white"
                 : isCurrent
@@ -67,7 +67,7 @@ export function EducationStepperReadOnly({
   const currentStage = records.find((r) => r.isCurrent)?.stage;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2">
       {STAGE_ORDER.map((stage) => {
         const isCompleted = completedStages.has(stage.key);
         const isCurrent = currentStage === stage.key;
@@ -75,7 +75,7 @@ export function EducationStepperReadOnly({
         return (
           <span
             key={stage.key}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs font-medium ${
               isCurrent
                 ? "bg-[#00D632] text-white"
                 : isCompleted

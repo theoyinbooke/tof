@@ -48,10 +48,10 @@ export default function MentorNotesPage() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-[#171717]">Mentor Notes</h1>
         <button onClick={() => setShowForm(!showForm)}
-          className="rounded-md bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-[#262626]">
+          className="shrink-0 self-start rounded-md bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-[#262626] sm:self-auto">
           {showForm ? "Cancel" : "+ New Note"}
         </button>
       </div>
@@ -109,14 +109,14 @@ export default function MentorNotesPage() {
         <div className="mt-4 space-y-3">
           {notes.map((n) => (
             <div key={n._id} className="rounded-xl border border-[#E5E5E5] bg-white p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
                     {(n.beneficiary?.name?.[0] || "?").toUpperCase()}
                   </div>
-                  <span className="text-sm font-medium text-[#171717]">{n.beneficiary?.name || "Unknown"}</span>
+                  <span className="min-w-0 truncate text-sm font-medium text-[#171717]">{n.beneficiary?.name || "Unknown"}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className="rounded-full border border-[#E5E5E5] px-2 py-0.5 text-[10px] text-[#737373]">
                     {n.visibility === "mentor_only" ? "Private" : "Shared"}
                   </span>
@@ -124,7 +124,7 @@ export default function MentorNotesPage() {
                     className="text-xs text-[#D4D4D4] hover:text-[#EF4444]">Delete</button>
                 </div>
               </div>
-              <p className="mt-2 text-sm text-[#262626] whitespace-pre-wrap">{n.content}</p>
+              <p className="mt-2 break-words text-sm text-[#262626] whitespace-pre-wrap">{n.content}</p>
               <p className="mt-2 text-[10px] text-[#D4D4D4]">{new Date(n.createdAt).toLocaleString()}</p>
             </div>
           ))}

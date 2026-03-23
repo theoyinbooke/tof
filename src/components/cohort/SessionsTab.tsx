@@ -179,7 +179,7 @@ export default function SessionsTab({ cohortId }: SessionsTabProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {successMsg && (
         <SuccessToast message={successMsg} onClose={() => setSuccessMsg(null)} />
       )}
@@ -388,7 +388,7 @@ export default function SessionsTab({ cohortId }: SessionsTabProps) {
       ) : (
         <>
           {/* Desktop Table */}
-          <div className="hidden overflow-hidden rounded-xl border border-[#E5E5E5] bg-white sm:block">
+          <div className="hidden max-w-full overflow-hidden rounded-xl border border-[#E5E5E5] bg-white sm:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>

@@ -9,7 +9,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-dvh bg-[#F7F7F7]">
+    <div className="flex h-dvh w-full overflow-x-hidden bg-[#F7F7F7]">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <Sidebar />
@@ -30,13 +30,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="lg:hidden">
           <TopBar onMenuClick={() => setSidebarOpen(true)} />
         </div>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
 
         {/* Mobile bottom nav */}
         <div className="lg:hidden">

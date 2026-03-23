@@ -137,7 +137,7 @@ export default function EducationPage() {
 
       {selectedStage && (
         <div className="mt-6 rounded-xl border border-[#E5E5E5] bg-white p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="text-base font-semibold text-[#171717] capitalize">
               {selectedStage.replace("_", " ")}
             </h2>
@@ -216,9 +216,9 @@ export default function EducationPage() {
               {fields.map((field) => {
                 const val = selectedRecord[field as keyof typeof selectedRecord];
                 return (
-                  <div key={field} className="flex items-center justify-between border-b border-[#F0F0F0] pb-2 last:border-0">
+                  <div key={field} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 border-b border-[#F0F0F0] pb-2 last:border-0">
                     <span className="text-sm text-[#737373]">{FIELD_LABELS[field]}</span>
-                    <span className="text-sm text-[#171717]">
+                    <span className="text-sm text-[#171717] break-words min-w-0">
                       {val !== undefined && val !== null ? String(val) : <span className="text-[#D4D4D4]">—</span>}
                     </span>
                   </div>

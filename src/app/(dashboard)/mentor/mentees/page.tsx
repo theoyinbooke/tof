@@ -23,9 +23,9 @@ export default function MentorMenteesPage() {
           <h2 className="text-sm font-semibold text-red-600">Attention Required ({openActions.length})</h2>
           <div className="mt-2 space-y-2">
             {openActions.map((a) => (
-              <div key={a._id} className="flex items-center justify-between text-sm">
-                <span className="text-red-700">{a.beneficiary?.name || "Unknown"} — {a.template?.shortCode}: {a.score?.severityBand}</span>
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] text-red-600">{a.status.replace("_", " ")}</span>
+              <div key={a._id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate text-red-700">{a.beneficiary?.name || "Unknown"} — {a.template?.shortCode}: {a.score?.severityBand}</span>
+                <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] text-red-600">{a.status.replace("_", " ")}</span>
               </div>
             ))}
           </div>
@@ -41,14 +41,14 @@ export default function MentorMenteesPage() {
         <div className="mt-4 overflow-hidden rounded-xl border border-[#E5E5E5] bg-white">
           {mentees.map((m, i) => (
             <Link key={m.assignment._id} href={`/mentor/mentees/${m.beneficiary?._id}`}
-              className={`flex items-center justify-between px-4 py-3 text-sm hover:bg-[#F7F7F7] ${i > 0 ? "border-t border-[#F0F0F0]" : ""}`}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
+              className={`flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-[#F7F7F7] ${i > 0 ? "border-t border-[#F0F0F0]" : ""}`}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-medium text-[#00D632]">
                   {(m.beneficiary?.name?.[0] || "?").toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-medium text-[#171717]">{m.beneficiary?.name || "Unknown"}</p>
-                  <p className="text-xs text-[#737373]">{m.beneficiary?.email}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[#171717]">{m.beneficiary?.name || "Unknown"}</p>
+                  <p className="truncate text-xs text-[#737373]">{m.beneficiary?.email}</p>
                 </div>
               </div>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#D4D4D4" strokeWidth="1.5" strokeLinecap="round"><path d="M5 3l4 4-4 4" /></svg>

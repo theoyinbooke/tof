@@ -17,11 +17,11 @@ export function OnboardingChecklist() {
   const progress = Math.round((status.completedCount / status.total) * 100);
 
   return (
-    <div className="rounded-xl border border-[#00D632]/30 bg-gradient-to-br from-[#E6FBF0] to-white p-6">
+    <div className="min-w-0 rounded-xl border border-[#00D632]/30 bg-gradient-to-br from-[#E6FBF0] to-white p-6">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00D632]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#00D632]">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
               <path d="M4 10l4 4 8-8" />
             </svg>

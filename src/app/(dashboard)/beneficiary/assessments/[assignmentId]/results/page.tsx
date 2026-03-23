@@ -104,12 +104,12 @@ export default function AssessmentResultsPage({
            ═══════════════════════════════════════════════════ */}
         <div className="rounded-xl border border-[#E5E5E5] bg-white p-6 md:p-8">
           {/* Header */}
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="flex h-8 items-center justify-center rounded bg-[#F0F0F0] px-2.5 text-[10px] font-bold text-[#525252]">
+          <div className="flex flex-wrap items-center gap-3 min-w-0">
+            <span className="flex h-8 shrink-0 items-center justify-center rounded bg-[#F0F0F0] px-2.5 text-[10px] font-bold text-[#525252]">
               {template.shortCode}
             </span>
-            <div>
-              <h1 className="text-lg font-semibold text-[#171717]">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold text-[#171717] break-words">
                 {template.name}
               </h1>
               <p className="text-xs text-[#737373]">

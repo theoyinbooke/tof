@@ -39,6 +39,10 @@ function calculateCompletion(
   return Math.round((filled.length / allFields.length) * 100);
 }
 
+function formatProfileName(firstName?: string, lastName?: string) {
+  return [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
+}
+
 export const getProfile = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -102,6 +106,9 @@ export const updatePersonalInfo = mutation({
   handler: async (ctx, args) => {
     await requireOwnerOrAdmin(ctx, args.userId);
 
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found.");
+
     const profile = await ctx.db
       .query("beneficiaryProfiles")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
@@ -109,9 +116,9 @@ export const updatePersonalInfo = mutation({
 
     if (!profile) throw new Error("Profile not found. Create one first.");
 
-    const { userId: _userId, ...updates } = args;
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
-    for (const [key, value] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "userId") continue;
       if (value !== undefined) patch[key] = value;
     }
 
@@ -121,6 +128,15 @@ export const updatePersonalInfo = mutation({
     );
 
     await ctx.db.patch(profile._id, patch);
+
+    const fullName = formatProfileName(args.firstName, args.lastName);
+    if (fullName && fullName !== user.name) {
+      await ctx.db.patch(args.userId, {
+        name: fullName,
+        updatedAt: Date.now(),
+      });
+    }
+
     return profile._id;
   },
 });
@@ -144,9 +160,9 @@ export const updateFamilyContext = mutation({
 
     if (!profile) throw new Error("Profile not found. Create one first.");
 
-    const { userId: _userId, ...updates } = args;
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
-    for (const [key, value] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "userId") continue;
       if (value !== undefined) patch[key] = value;
     }
 
@@ -191,6 +207,51 @@ export const updateLifecycleStatus = mutation({
 
     await ctx.db.patch(profile._id, patch);
     return profile._id;
+  },
+});
+
+export const updateProfilePicture = mutation({
+  args: {
+    userId: v.id("users"),
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    await requireOwnerOrAdmin(ctx, args.userId);
+
+    const profile = await ctx.db
+      .query("beneficiaryProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found. Create one first.");
+
+    // Delete old profile picture if it exists
+    if (profile.profilePictureStorageId) {
+      await ctx.storage.delete(profile.profilePictureStorageId);
+    }
+
+    await ctx.db.patch(profile._id, {
+      profilePictureStorageId: args.storageId,
+      updatedAt: Date.now(),
+    });
+
+    return profile._id;
+  },
+});
+
+export const getProfilePictureUrl = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    await requireOwnerOrAdmin(ctx, args.userId);
+
+    const profile = await ctx.db
+      .query("beneficiaryProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!profile?.profilePictureStorageId) return null;
+
+    return await ctx.storage.getUrl(profile.profilePictureStorageId);
   },
 });
 

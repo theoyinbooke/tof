@@ -45,9 +45,9 @@ export default function AdminFinancialPage() {
             {overdue.map((d) => (
               <Link key={d._id} href={`/admin/support/${d.requestId}`}
                 className="flex items-center justify-between rounded-lg border border-red-100 bg-red-50/50 px-3 py-2 hover:bg-red-50">
-                <div>
-                  <p className="text-sm font-medium text-[#171717]">{d.beneficiary?.name || "Unknown"}</p>
-                  <p className="text-xs text-[#737373]">₦{d.amount.toLocaleString()} · Due {d.evidenceDueDate ? new Date(d.evidenceDueDate).toLocaleDateString() : "N/A"}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#171717] truncate">{d.beneficiary?.name || "Unknown"}</p>
+                  <p className="text-xs text-[#737373] truncate">₦{d.amount.toLocaleString()} · Due {d.evidenceDueDate ? new Date(d.evidenceDueDate).toLocaleDateString() : "N/A"}</p>
                 </div>
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-600">Overdue</span>
               </Link>

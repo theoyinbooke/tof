@@ -150,7 +150,7 @@ export default function AssessmentsTab({ cohortId }: AssessmentsTabProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {successMsg && (
         <SuccessToast
           message={successMsg}
@@ -195,7 +195,7 @@ export default function AssessmentsTab({ cohortId }: AssessmentsTabProps) {
       </div>
 
       {/* Per-Instrument Table */}
-      <div className="rounded-xl border border-[#E5E5E5] bg-white">
+      <div className="min-w-0 rounded-xl border border-[#E5E5E5] bg-white">
         <div className="flex flex-col gap-3 border-b border-[#F0F0F0] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-[#171717]">
@@ -329,7 +329,7 @@ export default function AssessmentsTab({ cohortId }: AssessmentsTabProps) {
                                   },
                                 )}
                               </div>
-                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                              <div className="mt-1 flex flex-wrap gap-x-1 sm:gap-x-3 gap-y-0.5">
                                 {Object.entries(s.bandCounts).map(
                                   ([band, count]) => (
                                     <span
@@ -495,7 +495,7 @@ export default function AssessmentsTab({ cohortId }: AssessmentsTabProps) {
 
       {/* Flagged Quick View */}
       {totalFlagged > 0 && flaggedScores && flaggedScores.length > 0 && (
-        <div className="rounded-xl border border-[#E5E5E5] bg-white">
+        <div className="min-w-0 rounded-xl border border-[#E5E5E5] bg-white">
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-6 py-4">
             <div>
               <h2 className="text-sm font-semibold text-[#171717]">

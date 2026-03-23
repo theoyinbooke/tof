@@ -140,7 +140,7 @@ export function ConversationList({
                 )}
 
                 {/* Content */}
-                <div className="flex-1 overflow-hidden">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <div className="flex items-center justify-between">
                     <p
                       className={`truncate text-sm ${

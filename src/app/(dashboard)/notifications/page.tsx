@@ -32,7 +32,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[#171717]">Notifications</h1>
           {unreadCount !== undefined && unreadCount > 0 && (
@@ -44,7 +44,7 @@ export default function NotificationsPage() {
         {unreadCount !== undefined && unreadCount > 0 && (
           <button
             onClick={() => markAllAsRead()}
-            className="text-xs text-[#737373] hover:text-[#171717]"
+            className="shrink-0 text-xs text-[#737373] hover:text-[#171717]"
           >
             Mark all as read
           </button>
@@ -79,8 +79,8 @@ export default function NotificationsPage() {
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className={`text-sm ${!n.isRead ? "font-medium text-[#171717]" : "text-[#262626]"}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`min-w-0 text-sm ${!n.isRead ? "font-medium text-[#171717]" : "text-[#262626]"}`}>
                       {n.title}
                     </p>
                     {!n.isRead && (

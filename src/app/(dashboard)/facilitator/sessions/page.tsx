@@ -29,15 +29,15 @@ export default function FacilitatorSessionsPage() {
         <div className="mt-4 overflow-hidden rounded-xl border border-[#E5E5E5] bg-white">
           {sessions.map((s, i) => (
             <Link key={s._id} href={`/facilitator/sessions/${s._id}`}
-              className={`flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-[#F7F7F7] ${i > 0 ? "border-t border-[#F0F0F0]" : ""}`}>
-              <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F0F0F0] text-xs font-bold text-[#525252]">{s.sessionNumber}</span>
-                <div>
-                  <p className="font-medium text-[#171717]">{s.title}</p>
-                  <p className="text-xs text-[#737373]">{s.pillar?.replace("_", " ")}</p>
+              className={`flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:bg-[#F7F7F7] ${i > 0 ? "border-t border-[#F0F0F0]" : ""}`}>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F0F0F0] text-xs font-bold text-[#525252]">{s.sessionNumber}</span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[#171717]">{s.title}</p>
+                  <p className="truncate text-xs text-[#737373]">{s.pillar?.replace("_", " ")}</p>
                 </div>
               </div>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[#E6FBF0] text-[#00D632]" : "bg-[#F0F0F0] text-[#737373]"}`}>{s.status}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[#E6FBF0] text-[#00D632]" : "bg-[#F0F0F0] text-[#737373]"}`}>{s.status}</span>
             </Link>
           ))}
         </div>

@@ -97,7 +97,7 @@ function VideoEmbed({ url }: { url: string }) {
 
   if (ytId) {
     return (
-      <div className="mt-1.5 overflow-hidden rounded-lg" style={{ maxWidth: 400 }}>
+      <div className="mt-1.5 overflow-hidden rounded-lg" style={{ maxWidth: "min(400px, 100%)" }}>
         <div className="relative" style={{ paddingBottom: "56.25%" }}>
           <iframe
             className="absolute inset-0 h-full w-full"
@@ -113,7 +113,7 @@ function VideoEmbed({ url }: { url: string }) {
 
   if (vimeoId) {
     return (
-      <div className="mt-1.5 overflow-hidden rounded-lg" style={{ maxWidth: 400 }}>
+      <div className="mt-1.5 overflow-hidden rounded-lg" style={{ maxWidth: "min(400px, 100%)" }}>
         <div className="relative" style={{ paddingBottom: "56.25%" }}>
           <iframe
             className="absolute inset-0 h-full w-full"
@@ -206,7 +206,7 @@ export function MessageBubble({ message }: { message: MessageData }) {
               : "bg-[#F0F0F0] text-[#171717]"
           }`}
         >
-          <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
+          <p className="whitespace-pre-wrap text-sm" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{message.body}</p>
         </div>
 
         {/* Rich content below the bubble */}

@@ -48,17 +48,17 @@ export function FacilitatorDashboard() {
           <div className="mt-3 space-y-2">
             {upcomingSessions.slice(0, 5).map((s) => (
               <Link key={s._id} href={`/facilitator/sessions/${s._id}`}
-                className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-[#F7F7F7]">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-bold text-[#00D632]">
+                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 hover:bg-[#F7F7F7]">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E6FBF0] text-xs font-bold text-[#00D632]">
                     {s.sessionNumber}
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-[#171717]">{s.title}</p>
-                    <p className="text-xs text-[#737373]">{s.pillar?.replace("_", " ")}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#171717]">{s.title}</p>
+                    <p className="truncate text-xs text-[#737373]">{s.pillar?.replace("_", " ")}</p>
                   </div>
                 </div>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[#E6FBF0] text-[#00D632]" : "bg-blue-50 text-blue-600"}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[#E6FBF0] text-[#00D632]" : "bg-blue-50 text-blue-600"}`}>
                   {s.status}
                 </span>
               </Link>

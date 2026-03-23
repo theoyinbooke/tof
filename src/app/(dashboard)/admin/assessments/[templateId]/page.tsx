@@ -139,9 +139,9 @@ export default function AdminTemplateDetailPage({
         &larr; Back to assessments
       </Link>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-[#171717]">
               {template.name}
             </h1>
@@ -184,7 +184,7 @@ export default function AdminTemplateDetailPage({
       </div>
 
       {/* Tabs */}
-      <div className="mt-4 flex border-b border-[#E5E5E5]">
+      <div className="mt-4 flex overflow-x-auto border-b border-[#E5E5E5]">
         <button
           onClick={() => setActiveTab("details")}
           className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -408,12 +408,12 @@ function TemplateDetailsTab({
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#737373]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-[#737373] shrink-0">
                         Q{item.itemNumber}
                       </span>
-                      <span className="text-sm text-[#171717]">
+                      <span className="text-sm text-[#171717] truncate">
                         {item.text}
                       </span>
                       {item.isReversed && (
@@ -501,7 +501,7 @@ function AssignmentsTab({
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <div className="rounded-lg border border-[#E5E5E5] bg-white px-4 py-3">
           <p className="text-xs text-[#737373]">Total Assigned</p>
           <p className="text-lg font-semibold text-[#171717]">
@@ -642,9 +642,9 @@ function DetailRow({
   value?: string | null;
 }) {
   return (
-    <div className="flex items-start justify-between border-b border-[#F0F0F0] pb-2 last:border-0">
-      <span className="text-sm text-[#737373]">{label}</span>
-      <span className="text-right text-sm text-[#171717]">
+    <div className="flex items-start justify-between gap-2 border-b border-[#F0F0F0] pb-2 last:border-0">
+      <span className="text-sm text-[#737373] shrink-0">{label}</span>
+      <span className="text-right text-sm text-[#171717] min-w-0 break-words">
         {value || <span className="text-[#D4D4D4]">&mdash;</span>}
       </span>
     </div>

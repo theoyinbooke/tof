@@ -5,15 +5,10 @@ import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { use, useState } from "react";
 import Link from "next/link";
+import { OverviewTab } from "../../../../../components/admin/beneficiary/OverviewTab";
+import { TimelineTab } from "../../../../../components/admin/beneficiary/TimelineTab";
 
 type Tab = "overview" | "education" | "attendance" | "assessments" | "support" | "timeline";
-
-const EVENT_COLORS: Record<string, { bg: string; text: string }> = {
-  attendance: { bg: "bg-blue-50", text: "text-blue-600" },
-  support: { bg: "bg-purple-50", text: "text-purple-600" },
-  assessment: { bg: "bg-[#E6FBF0]", text: "text-[#00D632]" },
-  education: { bg: "bg-yellow-50", text: "text-yellow-600" },
-};
 
 export default function AdminBeneficiaryDetailPage({ params }: { params: Promise<{ beneficiaryId: string }> }) {
   const { beneficiaryId } = use(params);
@@ -27,6 +22,7 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
   const growthData = useQuery(api.analytics.getGrowthData, { userId });
   const pillarIndicators = useQuery(api.analytics.getPillarIndicators, { userId });
   const timeline = useQuery(api.analytics.getTimeline, { userId });
+  const profilePictureUrl = useQuery(api.beneficiaries.getProfilePictureUrl, { userId });
 
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -51,12 +47,12 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
     <div className="p-6 lg:p-10">
       <Link href="/admin/beneficiaries" className="text-sm text-[#737373] hover:text-[#171717]">&larr; Back</Link>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[#171717]">{devProfile.user.name}</h1>
-          <p className="mt-0.5 text-sm text-[#737373]">{devProfile.user.email}</p>
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-[#171717] truncate">{devProfile.user.name}</h1>
+          <p className="mt-0.5 text-sm text-[#737373] truncate">{devProfile.user.email}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {devProfile.profile && (
             <>
               <div className="h-2 w-20 overflow-hidden rounded-full bg-[#E5E5E5]">
@@ -86,28 +82,17 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
 
       <div className="mt-6">
         {tab === "overview" && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Attendance" value={`${devProfile.attendanceStats.rate}%`} sub={`${devProfile.attendanceStats.present}/${devProfile.attendanceStats.total}`} />
-            <StatCard label="Assessments" value={String(devProfile.assessmentScores.length)} sub="completed" />
-            <StatCard label="Support" value={String(devProfile.supportRequests.length)} sub="requests" />
-            <StatCard label="Notes" value={String(devProfile.notes.length)} sub="mentor notes" />
-
-            {/* Pillar indicators */}
-            {pillarIndicators && pillarIndicators.length > 0 && (
-              <div className="col-span-full rounded-xl border border-[#E5E5E5] bg-white p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-[#737373]">Pillar Indicators</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {pillarIndicators.map((p) => (
-                    <div key={p.pillar} className="rounded-lg border border-[#F0F0F0] px-3 py-2">
-                      <p className="text-xs text-[#737373] capitalize">{p.pillar.replace("_", " ")}</p>
-                      <p className="mt-1 text-lg font-semibold text-[#171717]">{p.average}</p>
-                      <p className="text-[10px] text-[#D4D4D4]">{p.count} assessments</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <OverviewTab
+            user={devProfile.user}
+            profile={devProfile.profile}
+            profilePictureUrl={profilePictureUrl ?? null}
+            attendanceStats={devProfile.attendanceStats}
+            assessmentCount={devProfile.assessmentScores.length}
+            supportCount={devProfile.supportRequests.length}
+            notesCount={devProfile.notes.length}
+            pillarIndicators={pillarIndicators}
+            userId={userId}
+          />
         )}
 
         {tab === "education" && (
@@ -118,9 +103,9 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
               <div className="space-y-3">
                 {devProfile.education.map((e) => (
                   <div key={e._id} className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2">
-                    <div>
-                      <p className="text-sm font-medium text-[#171717] uppercase">{e.stage}</p>
-                      <p className="text-xs text-[#737373]">{e.institutionName || "No institution"} {e.startYear ? `(${e.startYear}–${e.endYear || "present"})` : ""}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[#171717] uppercase truncate">{e.stage}</p>
+                      <p className="text-xs text-[#737373] truncate">{e.institutionName || "No institution"} {e.startYear ? `(${e.startYear}–${e.endYear || "present"})` : ""}</p>
                     </div>
                     {e.isCurrent && <span className="rounded-full bg-[#00D632] px-2 py-0.5 text-[10px] font-medium text-white">Current</span>}
                   </div>
@@ -133,7 +118,11 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
         {tab === "attendance" && (
           <div className="rounded-xl border border-[#E5E5E5] bg-white p-6">
             <div className="mb-4 flex items-center gap-4">
-              <StatCard label="Rate" value={`${devProfile.attendanceStats.rate}%`} sub={`${devProfile.attendanceStats.present} present`} inline />
+              <div>
+                <span className="text-xs text-[#737373]">Rate: </span>
+                <span className="text-sm font-semibold text-[#171717]">{devProfile.attendanceStats.rate}%</span>
+                <span className="text-xs text-[#737373]"> {devProfile.attendanceStats.present} present</span>
+              </div>
             </div>
             {devProfile.attendance.length === 0 ? (
               <p className="text-sm text-[#737373]">No attendance records.</p>
@@ -141,7 +130,7 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
               <div className="space-y-2">
                 {devProfile.attendance.map((a) => (
                   <div key={a._id} className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2">
-                    <p className="text-sm text-[#171717]">#{a.sessionNumber} {a.sessionTitle}</p>
+                    <p className="text-sm text-[#171717] min-w-0 truncate mr-2">#{a.sessionNumber} {a.sessionTitle}</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${a.status === "present" ? "bg-[#E6FBF0] text-[#00D632]" : a.status === "absent" ? "bg-red-50 text-red-600" : "bg-yellow-50 text-yellow-600"}`}>
                       {a.status}
                     </span>
@@ -154,7 +143,6 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
 
         {tab === "assessments" && (
           <div className="space-y-4">
-            {/* Growth data */}
             {growthData && Object.keys(growthData).length > 0 && (
               <div className="rounded-xl border border-[#E5E5E5] bg-white p-6">
                 <p className="text-xs font-medium uppercase tracking-wider text-[#737373]">Growth by Instrument</p>
@@ -189,8 +177,8 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
                 <div className="mt-4 space-y-2">
                   {devProfile.assessmentScores.map((s) => (
                     <div key={s._id} className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2">
-                      <div>
-                        <p className="text-sm text-[#171717]">{s.templateShortCode}: {s.totalScore}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-[#171717] truncate">{s.templateShortCode}: {s.totalScore}</p>
                         <p className="text-xs text-[#737373]">{new Date(s.scoredAt).toLocaleDateString()}</p>
                       </div>
                       {s.severityBand && <span className="rounded-full bg-[#F0F0F0] px-2 py-0.5 text-[10px] text-[#525252]">{s.severityBand}</span>}
@@ -211,9 +199,9 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
                 {devProfile.supportRequests.map((r) => (
                   <Link key={r._id} href={`/admin/support/${r._id}`}
                     className="flex items-center justify-between rounded-lg border border-[#F0F0F0] px-3 py-2 hover:bg-[#F7F7F7]">
-                    <div>
-                      <p className="text-sm font-medium text-[#171717]">{r.title}</p>
-                      <p className="text-xs text-[#737373]">{r.category} {r.amountRequested ? `· ₦${r.amountRequested.toLocaleString()}` : ""}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[#171717] truncate">{r.title}</p>
+                      <p className="text-xs text-[#737373] truncate">{r.category} {r.amountRequested ? `· ₦${r.amountRequested.toLocaleString()}` : ""}</p>
                     </div>
                     <span className="rounded-full bg-[#F0F0F0] px-2 py-0.5 text-[10px] text-[#525252]">{r.status.replace(/_/g, " ")}</span>
                   </Link>
@@ -224,50 +212,9 @@ export default function AdminBeneficiaryDetailPage({ params }: { params: Promise
         )}
 
         {tab === "timeline" && (
-          <div className="rounded-xl border border-[#E5E5E5] bg-white p-6">
-            {!timeline || timeline.length === 0 ? (
-              <p className="text-sm text-[#737373]">No events.</p>
-            ) : (
-              <div className="space-y-3">
-                {timeline.map((e, i) => {
-                  const color = EVENT_COLORS[e.type] || { bg: "bg-[#F0F0F0]", text: "text-[#525252]" };
-                  return (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${color.bg}`}>
-                        <span className={`text-[8px] font-bold ${color.text}`}>{e.type[0].toUpperCase()}</span>
-                      </div>
-                      <div className="min-w-0 flex-1 border-b border-[#F0F0F0] pb-3">
-                        <p className="text-sm font-medium text-[#171717]">{e.title}</p>
-                        <p className="text-xs text-[#737373]">{e.description}</p>
-                        <p className="mt-0.5 text-[10px] text-[#D4D4D4]">{new Date(e.timestamp).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <TimelineTab events={timeline ?? []} />
         )}
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, sub, inline }: { label: string; value: string; sub: string; inline?: boolean }) {
-  if (inline) {
-    return (
-      <div>
-        <span className="text-xs text-[#737373]">{label}: </span>
-        <span className="text-sm font-semibold text-[#171717]">{value}</span>
-        <span className="text-xs text-[#737373]"> {sub}</span>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-xl border border-[#E5E5E5] bg-white p-5">
-      <p className="text-xs font-medium uppercase tracking-wider text-[#737373]">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-[#171717]">{value}</p>
-      <p className="mt-0.5 text-xs text-[#737373]">{sub}</p>
     </div>
   );
 }
