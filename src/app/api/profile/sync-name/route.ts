@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     lastName?: string;
   };
 
-  const firstName = body.firstName?.trim() || null;
-  const lastName = body.lastName?.trim() || null;
+  const firstName = body.firstName?.trim() || undefined;
+  const lastName = body.lastName?.trim() || undefined;
 
   try {
     const clerk = createClerkClient({ secretKey: clerkSecretKey });
