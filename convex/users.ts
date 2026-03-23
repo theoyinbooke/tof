@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import {
+  internalQuery,
   internalMutation,
   mutation,
   query,
@@ -198,6 +199,16 @@ export const currentUser = query({
       .unique();
 
     return user;
+  },
+});
+
+export const getByClerkId = internalQuery({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
   },
 });
 

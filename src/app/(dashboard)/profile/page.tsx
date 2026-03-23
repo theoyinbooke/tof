@@ -80,6 +80,9 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
+  const canManageBeneficiaryProfile =
+    user.role === "beneficiary" || user.role === "mentor";
+
   const handleCreateProfile = async () => {
     await createProfile({ userId: user._id });
   };
@@ -111,6 +114,24 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
+
+  if (!canManageBeneficiaryProfile) {
+    return (
+      <div className="p-6 lg:p-10">
+        <h1 className="text-xl font-semibold text-[#171717]">Profile</h1>
+        <div className="mt-6 rounded-xl border border-[#E5E5E5] bg-white p-6">
+          <h2 className="text-base font-semibold text-[#171717]">{user.name}</h2>
+          <p className="mt-1 text-sm text-[#737373]">{user.email}</p>
+          <div className="mt-4 inline-flex items-center rounded-full border border-[#E5E5E5] px-2.5 py-0.5 text-xs text-[#525252]">
+            {user.role}
+          </div>
+          <p className="mt-4 text-sm text-[#737373]">
+            Detailed profile forms are only available for beneficiary accounts.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (

@@ -8,6 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "sync:users": "tsx scripts/sync-clerk-users.ts",
+    "reconcile:beneficiaries": "tsx scripts/reconcile-beneficiary-directory.ts",
+    "reconcile:beneficiaries:apply": "tsx scripts/reconcile-beneficiary-directory.ts --apply",
     "mcp:local": "tsx mcp/server.ts",
     "mcp:check": "tsx mcp/server.ts --self-check"
   },

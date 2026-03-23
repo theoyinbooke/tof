@@ -1,10 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import {
   requireUser,
   requireAdmin,
   requireOwnerOrAdmin,
 } from "./authHelpers";
+import type { Doc } from "./_generated/dataModel";
 
 const PROFILE_FIELDS = {
   personal: [
@@ -43,6 +44,23 @@ function formatProfileName(firstName?: string, lastName?: string) {
   return [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
 }
 
+function isDirectoryEligible(
+  user: Doc<"users"> | null,
+  profile: {
+    lifecycleStatus:
+      | "applicant"
+      | "active"
+      | "paused"
+      | "completed"
+      | "alumni"
+      | "withdrawn";
+  },
+) {
+  if (!user || !user.isActive) return false;
+  if (user.role === "beneficiary") return true;
+  return user.role === "mentor" && profile.lifecycleStatus === "alumni";
+}
+
 export const getProfile = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -71,6 +89,12 @@ export const createProfile = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     await requireOwnerOrAdmin(ctx, args.userId);
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found.");
+    if (user.role !== "beneficiary") {
+      throw new Error("Only beneficiary accounts can create beneficiary profiles.");
+    }
 
     const existing = await ctx.db
       .query("beneficiaryProfiles")
@@ -292,6 +316,102 @@ export const listBeneficiaries = query({
       }),
     );
 
-    return enriched;
+    return enriched.filter((profile) => isDirectoryEligible(profile.user, profile));
+  },
+});
+
+export const reconcileDirectory = internalMutation({
+  args: {
+    dryRun: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").take(500);
+    const profiles = await ctx.db.query("beneficiaryProfiles").take(500);
+
+    const profilesByUserId = new Map<Doc<"users">["_id"], Doc<"beneficiaryProfiles">>();
+    for (const profile of profiles) {
+      profilesByUserId.set(profile.userId, profile);
+    }
+
+    const now = Date.now();
+    const createdProfiles: Array<{ userId: Doc<"users">["_id"]; email: string }> = [];
+    const deletedProfiles: Array<{ profileId: Doc<"beneficiaryProfiles">["_id"]; email: string; role: Doc<"users">["role"] }> = [];
+    const renamedUsers: Array<{ userId: Doc<"users">["_id"]; from: string; to: string }> = [];
+    const keptHistoricalProfiles: Array<{ userId: Doc<"users">["_id"]; email: string }> = [];
+
+    for (const user of users) {
+      const profile = profilesByUserId.get(user._id);
+
+      if (user.role === "beneficiary" && !profile) {
+        createdProfiles.push({ userId: user._id, email: user.email });
+        if (!args.dryRun) {
+          await ctx.db.insert("beneficiaryProfiles", {
+            userId: user._id,
+            lifecycleStatus: "applicant",
+            profileCompletionPercent: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        continue;
+      }
+
+      if (!profile) {
+        continue;
+      }
+
+      const fullName = formatProfileName(profile.firstName, profile.lastName);
+      if (fullName && fullName !== user.name) {
+        renamedUsers.push({ userId: user._id, from: user.name, to: fullName });
+        if (!args.dryRun) {
+          await ctx.db.patch(user._id, {
+            name: fullName,
+            updatedAt: now,
+          });
+        }
+      }
+
+      if (user.role === "admin" || user.role === "facilitator") {
+        deletedProfiles.push({
+          profileId: profile._id,
+          email: user.email,
+          role: user.role,
+        });
+        if (!args.dryRun) {
+          if (profile.profilePictureStorageId) {
+            await ctx.storage.delete(profile.profilePictureStorageId);
+          }
+          await ctx.db.delete(profile._id);
+        }
+        continue;
+      }
+
+      if (user.role === "mentor") {
+        if (profile.lifecycleStatus === "alumni") {
+          keptHistoricalProfiles.push({ userId: user._id, email: user.email });
+        } else {
+          deletedProfiles.push({
+            profileId: profile._id,
+            email: user.email,
+            role: user.role,
+          });
+          if (!args.dryRun) {
+            if (profile.profilePictureStorageId) {
+              await ctx.storage.delete(profile.profilePictureStorageId);
+            }
+            await ctx.db.delete(profile._id);
+          }
+        }
+      }
+    }
+
+    return {
+      scannedUsers: users.length,
+      scannedProfiles: profiles.length,
+      createdProfiles,
+      deletedProfiles,
+      renamedUsers,
+      keptHistoricalProfiles,
+    };
   },
 });

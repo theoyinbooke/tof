@@ -36,6 +36,15 @@ html {
   overflow-x: hidden;
 }
 
+/* Prevent iOS Safari auto-zoom on form inputs (requires font-size >= 16px) */
+@media screen and (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 body {
   min-height: 100vh;
   color: var(--foreground);
