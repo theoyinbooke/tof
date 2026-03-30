@@ -11,7 +11,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="flex h-dvh w-full items-center justify-center overflow-hidden bg-[#0A0A0A] px-5 sm:px-8">
+    <main className="flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-[#0A0A0A] px-5 sm:px-8">
       <div className="flex w-full max-w-6xl flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         {/* Left — Copy & CTAs */}
         <div className="flex min-w-0 max-w-md flex-col items-center text-center lg:max-w-lg lg:items-start lg:text-left">
