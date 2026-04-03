@@ -40,13 +40,13 @@ export default async function Home() {
 
           <div className="relative z-10 mt-6 flex gap-3 sm:mt-8">
             <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
-              <button className="h-11 rounded-full bg-[#00D632] px-6 text-sm font-semibold text-black transition-all hover:brightness-110 active:scale-[0.97]">
+              <button className="h-11 min-h-[44px] min-w-[44px] rounded-full bg-[#00D632] px-6 text-sm font-semibold text-black transition-colors hover:brightness-110">
                 Get Started
               </button>
             </SignUpButton>
 
             <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-              <button className="h-11 rounded-full border border-white/15 px-6 text-sm font-semibold text-white transition-all hover:border-white/30 hover:bg-white/5 active:scale-[0.97]">
+              <button className="h-11 min-h-[44px] min-w-[44px] rounded-full border border-white/15 px-6 text-sm font-semibold text-white transition-colors hover:border-white/30 hover:bg-white/5">
                 Sign In
               </button>
             </SignInButton>
