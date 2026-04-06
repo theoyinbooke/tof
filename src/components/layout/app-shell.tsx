@@ -2,7 +2,6 @@
 
 import { ReactNode, useState } from "react";
 import { Sidebar } from "./sidebar";
-import { MobileNav } from "./mobile-nav";
 import { TopBar } from "./top-bar";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -30,18 +29,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="lg:hidden">
           <TopBar onMenuClick={() => setSidebarOpen(true)} />
         </div>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
-
-        {/* Mobile bottom nav */}
-        <div className="lg:hidden">
-          <MobileNav />
-        </div>
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
       </div>
     </div>
   );
