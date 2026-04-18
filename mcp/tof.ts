@@ -34,6 +34,12 @@ type AdminConvexClient = ConvexHttpClient & {
     mutation: Mutation,
     ...args: OptionalRestArgs<Mutation>
   ): Promise<FunctionReturnType<Mutation>>;
+  action<
+    Action extends FunctionReference<"action", "public" | "internal">,
+  >(
+    action: Action,
+    ...args: OptionalRestArgs<Action>
+  ): Promise<FunctionReturnType<Action>>;
 };
 
 type TofServerProfile = "local" | "remote";
@@ -1188,7 +1194,35 @@ function registerWriteTools(server: McpServer) {
     },
   );
 
-  // 29. send_direct_message
+  // 29. create_user
+  server.registerTool(
+    "create_user",
+    {
+      description:
+        "Create a new user account and send them an email invitation with a sign-in link. The user is provisioned in the platform immediately with the specified role.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        name: z.string().min(1).describe("Full name of the new user"),
+        email: z.string().email().describe("Email address of the new user"),
+        role: roleEnum.describe(
+          "Role to assign: admin, facilitator, mentor, or beneficiary",
+        ),
+      },
+    },
+    async ({ name, email, role }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.action(internal.mcp.createUser, {
+        actorEmail,
+        name,
+        email,
+        role,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // 30. send_direct_message
   server.registerTool(
     "send_direct_message",
     {

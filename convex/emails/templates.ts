@@ -56,6 +56,34 @@ export function welcome(data: TemplateData): EmailResult {
   };
 }
 
+export function accountInvite(data: TemplateData): EmailResult {
+  const name = data.recipientName || "there";
+  const role = data.role || "member";
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const inviteUrl = data.inviteUrl || link("/sign-in");
+
+  const content = [
+    heading(`You've been added to TheOyinbooke Foundation`),
+    paragraph(
+      `Hello ${name}, an administrator has created an account for you on the TheOyinbooke Foundation platform as a <strong>${roleLabel}</strong>.`,
+    ),
+    paragraph(
+      "Click the button below to set up your account and access the platform. This invitation link is valid for 7 days.",
+    ),
+    button("Accept Invitation", inviteUrl),
+    divider(),
+    paragraph(
+      '<span style="font-size:13px;color:#737373">If you weren\'t expecting this invitation, you can safely ignore this email. If you have questions, contact the foundation admin team.</span>',
+    ),
+  ].join("");
+
+  return {
+    subject: "You've been invited to TheOyinbooke Foundation",
+    html: emailLayout(content, "Your account is ready — accept your invitation"),
+    fromType: "hello",
+  };
+}
+
 export function roleAssigned(data: TemplateData): EmailResult {
   const name = data.recipientName || "there";
   const newRole = data.newRole || "member";
@@ -738,6 +766,7 @@ export function safeguardingResolved(data: TemplateData): EmailResult {
 
 const TEMPLATES: Record<string, (data: TemplateData) => EmailResult> = {
   welcome,
+  "account-invite": accountInvite,
   "role-assigned": roleAssigned,
   "account-deactivated": accountDeactivated,
   "mentor-assigned": mentorAssigned,

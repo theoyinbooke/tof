@@ -4,9 +4,11 @@ import {
   internalMutation,
   mutation,
   query,
+  action,
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { logAuditEvent } from "./auditLogs";
 import { notifyWithEmail } from "./emailHelpers";
@@ -53,8 +55,8 @@ async function enrichUserWithDisplayName(
 
 function buildUserPatch(
   existing: {
-    clerkId: string;
-    tokenIdentifier: string;
+    clerkId?: string;
+    tokenIdentifier?: string;
     email: string;
     name: string;
     avatarUrl?: string;
@@ -464,5 +466,132 @@ export const createOrUpdateFromWebhook = internalMutation({
     }
 
     return userId;
+  },
+});
+
+// ─── Admin: Create User ───
+
+export const getByEmail = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .unique();
+  },
+});
+
+export const provisionUser = internalMutation({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("facilitator"),
+      v.literal("mentor"),
+      v.literal("beneficiary"),
+    ),
+    adminId: v.id("users"),
+    inviteUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await ctx.db.insert("users", {
+      email: args.email,
+      name: args.name,
+      role: args.role,
+      isActive: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await logAuditEvent(ctx, {
+      userId: args.adminId,
+      action: "admin_create_user",
+      resource: "users",
+      resourceId: userId,
+      details: `Admin created user ${args.email} with role ${args.role}`,
+    });
+
+    await notifyWithEmail(ctx, {
+      userId,
+      type: "account_invite",
+      title: "Your account has been created",
+      body: "An admin has created an account for you. Check your email for an invitation link.",
+      eventKey: `account_invite:${userId}`,
+      emailType: "account-invite",
+      templateData: {
+        recipientName: args.name,
+        inviteUrl: args.inviteUrl,
+        role: args.role,
+      },
+    });
+
+    return userId;
+  },
+});
+
+export const adminCreateUser = action({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("facilitator"),
+      v.literal("mentor"),
+      v.literal("beneficiary"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const caller = await ctx.runQuery(internal.users.getByClerkId, {
+      clerkId: identity.subject,
+    });
+    if (!caller || caller.role !== "admin") {
+      throw new Error("Only admins can create users");
+    }
+
+    const existing = await ctx.runQuery(internal.users.getByEmail, {
+      email: args.email,
+    });
+    if (existing) throw new Error("A user with this email already exists");
+
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (!clerkSecretKey) throw new Error("CLERK_SECRET_KEY not configured");
+
+    const siteUrl =
+      process.env.SITE_URL || "https://theoyinbookefoundation.com";
+    const redirectUrl = `${siteUrl}/sign-in`;
+
+    const inviteRes = await fetch("https://api.clerk.com/v1/invitations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${clerkSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email_address: args.email,
+        redirect_url: redirectUrl,
+        notify: false,
+        public_metadata: { role: args.role },
+      }),
+    });
+
+    if (!inviteRes.ok) {
+      const body = await inviteRes.text();
+      throw new Error(`Clerk invitation failed: ${body}`);
+    }
+
+    const invite = (await inviteRes.json()) as { url: string };
+    const inviteUrl = invite.url;
+
+    await ctx.runMutation(internal.users.provisionUser, {
+      name: args.name,
+      email: args.email,
+      role: args.role,
+      adminId: caller._id,
+      inviteUrl,
+    });
   },
 });

@@ -2,9 +2,11 @@ import { v } from "convex/values";
 import {
   QueryCtx,
   MutationCtx,
+  internalAction,
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { logAuditEvent } from "./auditLogs";
 import { canMessageUser } from "./messagingAccess";
@@ -1941,5 +1943,86 @@ export const sendDirectMessage = internalMutation({
       recipientUserId: otherUser._id,
       type,
     };
+  },
+});
+
+// createUser
+export const createUser = internalAction({
+  args: {
+    actorEmail: v.string(),
+    name: v.string(),
+    email: v.string(),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("facilitator"),
+      v.literal("mentor"),
+      v.literal("beneficiary"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Verify actor is an active admin
+    const actor = await ctx.runQuery(internal.mcp.findActorByEmail, {
+      actorEmail: args.actorEmail,
+    });
+    if (!actor) throw new Error(`No user found for actor email: ${args.actorEmail}`);
+    if (actor.role !== "admin") throw new Error(`Actor ${args.actorEmail} is not an admin`);
+    if (!actor.isActive) throw new Error(`Actor ${args.actorEmail} is deactivated`);
+
+    // Check email is unique
+    const existing = await ctx.runQuery(internal.users.getByEmail, {
+      email: args.email,
+    });
+    if (existing) throw new Error(`A user with email ${args.email} already exists`);
+
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (!clerkSecretKey) throw new Error("CLERK_SECRET_KEY not configured");
+
+    const siteUrl = process.env.SITE_URL || "https://theoyinbookefoundation.com";
+    const redirectUrl = `${siteUrl}/sign-in`;
+
+    const inviteRes = await fetch("https://api.clerk.com/v1/invitations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${clerkSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email_address: args.email,
+        redirect_url: redirectUrl,
+        notify: false,
+        public_metadata: { role: args.role },
+      }),
+    });
+
+    if (!inviteRes.ok) {
+      const body = await inviteRes.text();
+      throw new Error(`Clerk invitation failed: ${body}`);
+    }
+
+    const invite = (await inviteRes.json()) as { url: string };
+    const inviteUrl = invite.url;
+
+    const userId = await ctx.runMutation(internal.users.provisionUser, {
+      name: args.name,
+      email: args.email,
+      role: args.role,
+      adminId: actor._id,
+      inviteUrl,
+    });
+
+    return { userId, email: args.email, role: args.role, inviteUrl };
+  },
+});
+
+// findActorByEmail (internal query used by createUser action)
+export const findActorByEmail = internalQuery({
+  args: { actorEmail: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) =>
+        q.eq("email", args.actorEmail.trim().toLowerCase()),
+      )
+      .first();
   },
 });
