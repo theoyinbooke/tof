@@ -14,6 +14,7 @@ import {
   SUPPORT_REQUEST_STATUSES,
   SUPPORT_CATEGORIES,
   SAFEGUARDING_STATUSES,
+  OPERATIONAL_EXPENSE_CATEGORIES,
 } from "./constants";
 
 const DEFAULT_VERSION = "0.1.0";
@@ -61,6 +62,7 @@ const supportRequestStatusEnum = z.enum(SUPPORT_REQUEST_STATUSES);
 const supportCategoryEnum = z.enum(SUPPORT_CATEGORIES);
 const safeguardingStatusEnum = z.enum(SAFEGUARDING_STATUSES);
 const messageTypeEnum = z.enum(["text", "link", "video_link"]);
+const operationalExpenseCategoryEnum = z.enum(OPERATIONAL_EXPENSE_CATEGORIES);
 
 // ---------------------------------------------------------------------------
 // Environment helpers
@@ -465,13 +467,63 @@ function registerReadTools(server: McpServer) {
     "get_financial_summary",
     {
       description:
-        "Return the financial summary: total amount disbursed, evidence status counts, pending and under-review request counts.",
+        "Return the financial summary: total disbursed, total operational expenses, total platform expenses, evidence status counts, pending and under-review request counts.",
       annotations: readOnlyAnnotations(),
       inputSchema: {},
     },
     async () => {
       const client = createClient();
       const summary = await client.query(internal.mcp.getFinancialSummary, {});
+      return jsonResult(summary);
+    },
+  );
+
+  // list_operational_expenses
+  server.registerTool(
+    "list_operational_expenses",
+    {
+      description:
+        "List operational/program expenses (non-beneficiary platform costs such as school fees for kids without accounts, supplies, transport, utilities, etc.). Optionally filter by category.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        category: operationalExpenseCategoryEnum
+          .optional()
+          .describe("Filter by operational expense category"),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+    },
+    async ({ category, limit }) => {
+      const client = createClient();
+      const expenses = await client.query(internal.mcp.listOperationalExpenses, {
+        category,
+        limit,
+      });
+      return jsonResult({
+        expenses: expenses.map((e) => ({
+          ...e,
+          expenseDate: toIso(e.expenseDate),
+          createdAt: toIso(e.createdAt),
+          updatedAt: toIso(e.updatedAt),
+        })),
+      });
+    },
+  );
+
+  // get_operational_expenses_summary
+  server.registerTool(
+    "get_operational_expenses_summary",
+    {
+      description:
+        "Return a summary of operational/program expenses: total amount, count, and breakdown by category.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {},
+    },
+    async () => {
+      const client = createClient();
+      const summary = await client.query(
+        internal.mcp.getOperationalExpensesSummary,
+        {},
+      );
       return jsonResult(summary);
     },
   );
@@ -1252,6 +1304,73 @@ function registerWriteTools(server: McpServer) {
         type,
         linkUrl,
       });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  // record_operational_expense
+  server.registerTool(
+    "record_operational_expense",
+    {
+      description:
+        "Record an operational/program expense (e.g. school fees for a child without a platform account, supplies, transport, utilities). Counts toward the platform's total expenses alongside disbursements.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        category: operationalExpenseCategoryEnum.describe(
+          "Expense category (school_fees, supplies, transport, utilities, salaries, events, equipment, rent, other)",
+        ),
+        amount: z.number().positive().describe("Expense amount in NGN"),
+        description: z
+          .string()
+          .min(1)
+          .describe("Note/description of what the expense is for"),
+        expenseDateIso: z
+          .string()
+          .datetime({ offset: true })
+          .optional()
+          .describe(
+            "Date the expense was incurred (ISO timestamp). Defaults to now.",
+          ),
+        payee: z
+          .string()
+          .optional()
+          .describe("Who was paid (school name, vendor, person)"),
+        beneficiaryName: z
+          .string()
+          .optional()
+          .describe(
+            "If this expense is on behalf of a person without a platform account (e.g. a young child whose school fees are being paid), record their name here.",
+          ),
+        bankReference: z
+          .string()
+          .optional()
+          .describe("Bank or transfer reference"),
+      },
+    },
+    async ({
+      category,
+      amount,
+      description,
+      expenseDateIso,
+      payee,
+      beneficiaryName,
+      bankReference,
+    }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(
+        internal.mcp.recordOperationalExpense,
+        {
+          actorEmail,
+          category,
+          amount,
+          description,
+          expenseDate: parseIsoToEpoch(expenseDateIso),
+          payee,
+          beneficiaryName,
+          bankReference,
+        },
+      );
       return jsonResult({ ...result, actorEmail });
     },
   );

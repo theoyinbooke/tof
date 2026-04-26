@@ -234,6 +234,14 @@ export const financialSummary = query({
       .withIndex("by_status", (q) => q.eq("status", "under_review"))
       .take(200);
 
+    const operationalExpenses = await ctx.db
+      .query("operationalExpenses")
+      .take(2000);
+    const totalOperationalExpenses = operationalExpenses.reduce(
+      (sum, e) => sum + e.amount,
+      0,
+    );
+
     return {
       totalDisbursed,
       disbursementCount: disbursements.length,
@@ -242,6 +250,9 @@ export const financialSummary = query({
       verified,
       pendingRequests: pendingRequests.length,
       underReview: underReview.length,
+      totalOperationalExpenses,
+      operationalExpenseCount: operationalExpenses.length,
+      totalPlatformExpenses: totalDisbursed + totalOperationalExpenses,
     };
   },
 });

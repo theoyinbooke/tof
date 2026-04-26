@@ -248,6 +248,33 @@ export default defineSchema({
     .index("by_requestId", ["requestId"])
     .index("by_evidenceStatus", ["evidenceStatus"]),
 
+  operationalExpenses: defineTable({
+    category: v.union(
+      v.literal("school_fees"),
+      v.literal("supplies"),
+      v.literal("transport"),
+      v.literal("utilities"),
+      v.literal("salaries"),
+      v.literal("events"),
+      v.literal("equipment"),
+      v.literal("rent"),
+      v.literal("other"),
+    ),
+    amount: v.number(),
+    description: v.string(),
+    expenseDate: v.number(),
+    payee: v.optional(v.string()),
+    beneficiaryName: v.optional(v.string()),
+    bankReference: v.optional(v.string()),
+    receiptStorageId: v.optional(v.id("_storage")),
+    recordedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_recordedBy", ["recordedBy"])
+    .index("by_category", ["category"])
+    .index("by_expenseDate", ["expenseDate"]),
+
   sessionEnrollments: defineTable({
     sessionId: v.id("sessions"),
     userId: v.id("users"),

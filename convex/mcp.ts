@@ -306,6 +306,14 @@ export const getPlatformDashboard = internalQuery({
       (d) => d.evidenceStatus === "overdue",
     ).length;
 
+    const allOperationalExpenses = await ctx.db
+      .query("operationalExpenses")
+      .collect();
+    const totalOperationalExpenses = allOperationalExpenses.reduce(
+      (sum, e) => sum + e.amount,
+      0,
+    );
+
     const pendingRequests = await ctx.db
       .query("supportRequests")
       .withIndex("by_status", (q) => q.eq("status", "submitted"))
@@ -353,6 +361,9 @@ export const getPlatformDashboard = internalQuery({
         overdueEvidence,
         pendingRequests: pendingRequests.length,
         underReview: underReview.length,
+        totalOperationalExpenses,
+        operationalExpenseCount: allOperationalExpenses.length,
+        totalPlatformExpenses: totalDisbursed + totalOperationalExpenses,
       },
       openSafeguardingCount: openSafeguarding.length + inProgressSafeguarding.length,
       recentAuditLogs: enrichedLogs,
@@ -910,6 +921,21 @@ export const getFinancialSummary = internalQuery({
       .withIndex("by_status", (q) => q.eq("status", "approved"))
       .collect();
 
+    const operationalExpenses = await ctx.db
+      .query("operationalExpenses")
+      .collect();
+    const totalOperationalExpenses = operationalExpenses.reduce(
+      (sum, e) => sum + e.amount,
+      0,
+    );
+    const operationalByCategory: Record<string, { count: number; total: number }> = {};
+    for (const e of operationalExpenses) {
+      const slot = operationalByCategory[e.category] ?? { count: 0, total: 0 };
+      slot.count += 1;
+      slot.total += e.amount;
+      operationalByCategory[e.category] = slot;
+    }
+
     return {
       totalDisbursed,
       disbursementCount,
@@ -919,7 +945,140 @@ export const getFinancialSummary = internalQuery({
       pendingRequests: pendingRequests.length,
       underReview: underReview.length,
       approvedAwaitingDisbursement: approved.length,
+      totalOperationalExpenses,
+      operationalExpenseCount: operationalExpenses.length,
+      operationalByCategory,
+      totalPlatformExpenses: totalDisbursed + totalOperationalExpenses,
     };
+  },
+});
+
+// listOperationalExpenses
+export const listOperationalExpenses = internalQuery({
+  args: {
+    category: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? DEFAULT_LIMIT;
+
+    const expenses = args.category
+      ? await ctx.db
+          .query("operationalExpenses")
+          .withIndex("by_category", (q) =>
+            q.eq(
+              "category",
+              args.category as Doc<"operationalExpenses">["category"],
+            ),
+          )
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("operationalExpenses")
+          .withIndex("by_expenseDate")
+          .order("desc")
+          .take(limit);
+
+    return Promise.all(
+      expenses.map(async (e) => {
+        const recorder = await ctx.db.get(e.recordedBy);
+        return {
+          id: e._id,
+          category: e.category,
+          amount: e.amount,
+          description: e.description,
+          expenseDate: e.expenseDate,
+          payee: e.payee ?? null,
+          beneficiaryName: e.beneficiaryName ?? null,
+          bankReference: e.bankReference ?? null,
+          recordedById: e.recordedBy,
+          recordedByName: recorder?.name ?? "Unknown",
+          createdAt: e.createdAt,
+          updatedAt: e.updatedAt,
+        };
+      }),
+    );
+  },
+});
+
+// getOperationalExpensesSummary
+export const getOperationalExpensesSummary = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const expenses = await ctx.db.query("operationalExpenses").collect();
+    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    const byCategory: Record<string, { count: number; total: number }> = {};
+    for (const e of expenses) {
+      const slot = byCategory[e.category] ?? { count: 0, total: 0 };
+      slot.count += 1;
+      slot.total += e.amount;
+      byCategory[e.category] = slot;
+    }
+
+    return {
+      totalAmount,
+      count: expenses.length,
+      byCategory,
+    };
+  },
+});
+
+// recordOperationalExpense
+export const recordOperationalExpense = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    category: v.union(
+      v.literal("school_fees"),
+      v.literal("supplies"),
+      v.literal("transport"),
+      v.literal("utilities"),
+      v.literal("salaries"),
+      v.literal("events"),
+      v.literal("equipment"),
+      v.literal("rent"),
+      v.literal("other"),
+    ),
+    amount: v.number(),
+    description: v.string(),
+    expenseDate: v.optional(v.number()),
+    payee: v.optional(v.string()),
+    beneficiaryName: v.optional(v.string()),
+    bankReference: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    if (args.amount <= 0) {
+      throw new Error("Amount must be greater than zero.");
+    }
+    const description = args.description.trim();
+    if (!description) {
+      throw new Error("Description is required.");
+    }
+
+    const now = Date.now();
+    const expenseId = await ctx.db.insert("operationalExpenses", {
+      category: args.category,
+      amount: args.amount,
+      description,
+      expenseDate: args.expenseDate ?? now,
+      payee: args.payee?.trim() || undefined,
+      beneficiaryName: args.beneficiaryName?.trim() || undefined,
+      bankReference: args.bankReference?.trim() || undefined,
+      recordedBy: actor._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "create_operational_expense",
+      resource: "operationalExpenses",
+      resourceId: expenseId,
+      details: `Recorded ₦${args.amount.toLocaleString()} ${args.category} expense: ${description.slice(0, 80)}`,
+    });
+
+    return { expenseId };
   },
 });
 

@@ -96,3 +96,15 @@ export const LIFECYCLE_STATUSES = [
   "alumni",
   "withdrawn",
 ] as const;
+
+export const OPERATIONAL_EXPENSE_CATEGORIES = [
+  "school_fees",
+  "supplies",
+  "transport",
+  "utilities",
+  "salaries",
+  "events",
+  "equipment",
+  "rent",
+  "other",
+] as const;
