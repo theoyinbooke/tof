@@ -108,3 +108,30 @@ export const OPERATIONAL_EXPENSE_CATEGORIES = [
   "rent",
   "other",
 ] as const;
+
+export const DOCUMENT_CATEGORIES = [
+  "identity",
+  "education",
+  "support_evidence",
+  "other",
+] as const;
+
+export const MATERIAL_VISIBILITIES = [
+  "public",
+  "restricted",
+] as const;
+
+export const NOTIFICATION_DELIVERY_STATUSES = [
+  "pending",
+  "sent",
+  "failed",
+  "skipped",
+] as const;
+
+export const MATERIAL_TYPES = [
+  "pdf",
+  "docx",
+  "youtube",
+  "link",
+  "audio",
+] as const;

@@ -18,6 +18,75 @@ import { createNotification } from "./notifications";
 
 const DEFAULT_LIMIT = 50;
 
+const assessmentAssignmentStatusValidator = v.union(
+  v.literal("assigned"),
+  v.literal("in_progress"),
+  v.literal("completed"),
+  v.literal("overdue"),
+);
+
+const attendanceStatusValidator = v.union(
+  v.literal("present"),
+  v.literal("absent"),
+  v.literal("excused"),
+);
+
+const lifecycleStatusValidator = v.union(
+  v.literal("applicant"),
+  v.literal("active"),
+  v.literal("paused"),
+  v.literal("completed"),
+  v.literal("alumni"),
+  v.literal("withdrawn"),
+);
+
+const documentCategoryValidator = v.union(
+  v.literal("identity"),
+  v.literal("education"),
+  v.literal("support_evidence"),
+  v.literal("other"),
+);
+
+const materialVisibilityValidator = v.union(
+  v.literal("public"),
+  v.literal("restricted"),
+);
+
+const notificationDeliveryStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("sent"),
+  v.literal("failed"),
+  v.literal("skipped"),
+);
+
+const assessmentItemValidator = v.object({
+  itemNumber: v.number(),
+  text: v.string(),
+  subscale: v.optional(v.string()),
+  isReversed: v.boolean(),
+  responseOptions: v.array(
+    v.object({
+      label: v.string(),
+      value: v.number(),
+    }),
+  ),
+});
+
+const assessmentSubscaleValidator = v.object({
+  name: v.string(),
+  itemNumbers: v.array(v.number()),
+  scoringMethod: v.optional(v.union(v.literal("sum"), v.literal("average"))),
+});
+
+const assessmentSeverityBandValidator = v.object({
+  label: v.string(),
+  min: v.number(),
+  max: v.number(),
+  flagBehavior: v.optional(
+    v.union(v.literal("none"), v.literal("mentor_notify"), v.literal("admin_review")),
+  ),
+});
+
 type McpCtx = QueryCtx | MutationCtx;
 
 function normalizeEmail(email: string) {
@@ -253,7 +322,7 @@ async function getOrCreateDirectConversation(
 }
 
 // ===========================================================================
-// READ QUERIES (15)
+// READ QUERIES (16)
 // ===========================================================================
 
 // 1. getPlatformDashboard
@@ -950,6 +1019,1245 @@ export const getFinancialSummary = internalQuery({
       operationalByCategory,
       totalPlatformExpenses: totalDisbursed + totalOperationalExpenses,
     };
+  },
+});
+
+// listAssessmentTemplates
+export const listAssessmentTemplates = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const templates = await ctx.db.query("assessmentTemplates").take(200);
+
+    return templates.map((template) => ({
+      id: template._id,
+      name: template.name,
+      code: template.shortCode,
+      itemCount: template.items.length,
+    }));
+  },
+});
+
+export const getAssessmentTemplate = internalQuery({
+  args: {
+    templateId: v.optional(v.id("assessmentTemplates")),
+    code: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.templateId) {
+      return await ctx.db.get(args.templateId);
+    }
+    if (!args.code) {
+      throw new Error("Provide either templateId or code.");
+    }
+
+    const templates = await ctx.db
+      .query("assessmentTemplates")
+      .withIndex("by_shortCode", (q) => q.eq("shortCode", args.code!))
+      .take(20);
+
+    return (
+      templates
+        .sort((a, b) => {
+          if (a.status === "published" && b.status !== "published") return -1;
+          if (a.status !== "published" && b.status === "published") return 1;
+          return b.version - a.version;
+        })[0] ?? null
+    );
+  },
+});
+
+export const listAssessmentAssignments = internalQuery({
+  args: {
+    userId: v.optional(v.id("users")),
+    sessionId: v.optional(v.id("sessions")),
+    templateId: v.optional(v.id("assessmentTemplates")),
+    status: v.optional(assessmentAssignmentStatusValidator),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? DEFAULT_LIMIT;
+    let assignments: Doc<"assessmentAssignments">[];
+
+    if (args.userId && args.status) {
+      assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_userId_and_status", (q) =>
+          q.eq("userId", args.userId!).eq("status", args.status!),
+        )
+        .take(limit);
+    } else if (args.userId) {
+      assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .take(limit);
+    } else if (args.sessionId) {
+      assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId!))
+        .take(limit);
+    } else if (args.templateId) {
+      assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_templateId", (q) => q.eq("templateId", args.templateId!))
+        .take(limit);
+    } else if (args.status) {
+      assignments = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .take(limit);
+    } else {
+      assignments = await ctx.db.query("assessmentAssignments").order("desc").take(limit);
+    }
+
+    return await Promise.all(
+      assignments.map(async (assignment) => {
+        const [user, template, session, scores] = await Promise.all([
+          ctx.db.get(assignment.userId),
+          ctx.db.get(assignment.templateId),
+          assignment.sessionId ? ctx.db.get(assignment.sessionId) : Promise.resolve(null),
+          ctx.db
+            .query("assessmentScores")
+            .withIndex("by_assignmentId", (q) => q.eq("assignmentId", assignment._id))
+            .take(1),
+        ]);
+        const score = scores[0] ?? null;
+
+        return {
+          id: assignment._id,
+          userId: assignment.userId,
+          userName: user?.name ?? "Unknown",
+          userEmail: user?.email ?? "Unknown",
+          templateId: assignment.templateId,
+          templateName: template?.name ?? "Unknown",
+          templateCode: template?.shortCode ?? "?",
+          sessionId: assignment.sessionId ?? null,
+          sessionTitle: session?.title ?? null,
+          status: assignment.status,
+          dueDate: assignment.dueDate ?? null,
+          createdAt: assignment.createdAt,
+          updatedAt: assignment.updatedAt,
+          scoreId: score?._id ?? null,
+          totalScore: score?.totalScore ?? null,
+          severityBand: score?.severityBand ?? null,
+        };
+      }),
+    );
+  },
+});
+
+export const getAssessmentResult = internalQuery({
+  args: {
+    scoreId: v.optional(v.id("assessmentScores")),
+    assignmentId: v.optional(v.id("assessmentAssignments")),
+  },
+  handler: async (ctx, args) => {
+    let score: Doc<"assessmentScores"> | null = null;
+    if (args.scoreId) {
+      score = await ctx.db.get(args.scoreId);
+    } else if (args.assignmentId) {
+      const scores = await ctx.db
+        .query("assessmentScores")
+        .withIndex("by_assignmentId", (q) => q.eq("assignmentId", args.assignmentId!))
+        .take(1);
+      score = scores[0] ?? null;
+    } else {
+      throw new Error("Provide either scoreId or assignmentId.");
+    }
+
+    if (!score) return null;
+
+    const [template, user, response, assignment, safeguardingActions] =
+      await Promise.all([
+        ctx.db.get(score.templateId),
+        ctx.db.get(score.userId),
+        ctx.db.get(score.responseId),
+        ctx.db.get(score.assignmentId),
+        ctx.db
+          .query("safeguardingActions")
+          .withIndex("by_scoreId", (q) => q.eq("scoreId", score._id))
+          .take(1),
+      ]);
+
+    return {
+      score,
+      template,
+      user: user
+        ? { id: user._id, name: user.name, email: user.email, role: user.role }
+        : null,
+      response: response
+        ? {
+            id: response._id,
+            answers: response.answers,
+            submittedAt: response.submittedAt ?? null,
+          }
+        : null,
+      assignment,
+      safeguardingAction: safeguardingActions[0] ?? null,
+    };
+  },
+});
+
+export const listBeneficiaryDocuments = internalQuery({
+  args: {
+    userId: v.id("users"),
+    category: v.optional(documentCategoryValidator),
+    includeUrls: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const docs = args.category
+      ? await ctx.db
+          .query("documents")
+          .withIndex("by_ownerId_and_category", (q) =>
+            q.eq("ownerId", args.userId).eq("category", args.category!),
+          )
+          .take(100)
+      : await ctx.db
+          .query("documents")
+          .withIndex("by_ownerId", (q) => q.eq("ownerId", args.userId))
+          .take(100);
+
+    return await Promise.all(
+      docs.map(async (doc) => ({
+        id: doc._id,
+        ownerId: doc.ownerId,
+        uploaderId: doc.uploaderId,
+        fileName: doc.fileName,
+        fileType: doc.fileType,
+        fileSize: doc.fileSize,
+        category: doc.category,
+        visibility: doc.visibility,
+        description: doc.description ?? null,
+        linkedProfileId: doc.linkedProfileId ?? null,
+        linkedSupportRequestId: doc.linkedSupportRequestId ?? null,
+        url: args.includeUrls ? await ctx.storage.getUrl(doc.storageId) : null,
+        createdAt: doc.createdAt,
+      })),
+    );
+  },
+});
+
+export const listEducationRecords = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("educationRecords")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(50);
+  },
+});
+
+export const updateBeneficiaryProfile = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    userId: v.id("users"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    dateOfBirth: v.optional(v.string()),
+    gender: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    stateOfOrigin: v.optional(v.string()),
+    lga: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    guardianRelationship: v.optional(v.string()),
+    familySize: v.optional(v.number()),
+    householdIncome: v.optional(v.string()),
+    lifecycleStatus: v.optional(lifecycleStatusValidator),
+    adminNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found.");
+
+    let profile = await ctx.db
+      .query("beneficiaryProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!profile) {
+      const profileId = await ctx.db.insert("beneficiaryProfiles", {
+        userId: args.userId,
+        lifecycleStatus: "applicant",
+        profileCompletionPercent: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      profile = (await ctx.db.get(profileId))!;
+    }
+
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "actorEmail" || key === "userId") continue;
+      if (value !== undefined) patch[key] = value;
+    }
+
+    const completionFields = [
+      "firstName",
+      "lastName",
+      "dateOfBirth",
+      "gender",
+      "phone",
+      "address",
+      "stateOfOrigin",
+      "lga",
+      "guardianName",
+      "guardianPhone",
+      "guardianRelationship",
+      "familySize",
+      "householdIncome",
+    ];
+    const merged = { ...profile, ...patch } as Record<string, unknown>;
+    const filled = completionFields.filter(
+      (field) => merged[field] !== undefined && merged[field] !== null && merged[field] !== "",
+    );
+    patch.profileCompletionPercent = Math.round((filled.length / completionFields.length) * 100);
+
+    await ctx.db.patch(profile._id, patch);
+
+    const fullName = [args.firstName?.trim(), args.lastName?.trim()]
+      .filter(Boolean)
+      .join(" ");
+    if (fullName && fullName !== user.name) {
+      await ctx.db.patch(args.userId, { name: fullName, updatedAt: Date.now() });
+    }
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "update_beneficiary_profile",
+      resource: "beneficiaryProfiles",
+      resourceId: profile._id,
+      details: `Updated beneficiary profile for ${user.name}`,
+    });
+
+    return { profileId: profile._id };
+  },
+});
+
+export const listSessionAttendance = internalQuery({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, args) => {
+    const enrollments = await ctx.db
+      .query("sessionEnrollments")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .take(300);
+    const attendance = await ctx.db
+      .query("sessionAttendance")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .take(300);
+    const attendanceByUserId = new Map(attendance.map((record) => [record.userId, record]));
+
+    return await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const user = await ctx.db.get(enrollment.userId);
+        const record = attendanceByUserId.get(enrollment.userId) ?? null;
+        return {
+          userId: enrollment.userId,
+          userName: user?.name ?? "Unknown",
+          userEmail: user?.email ?? "Unknown",
+          enrollmentStatus: enrollment.status,
+          enrolledAt: enrollment.enrolledAt,
+          attendanceId: record?._id ?? null,
+          attendanceStatus: record?.status ?? null,
+          notes: record?.notes ?? null,
+          markedAt: record?.markedAt ?? null,
+          markedBy: record?.markedBy ?? null,
+        };
+      }),
+    );
+  },
+});
+
+export const markAttendance = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    sessionId: v.id("sessions"),
+    userId: v.id("users"),
+    status: attendanceStatusValidator,
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const enrollment = await ctx.db
+      .query("sessionEnrollments")
+      .withIndex("by_sessionId_and_status", (q) =>
+        q.eq("sessionId", args.sessionId).eq("status", "enrolled"),
+      )
+      .take(300);
+    if (!enrollment.some((row) => row.userId === args.userId)) {
+      throw new Error("User is not enrolled in this session.");
+    }
+
+    const existing = await ctx.db
+      .query("sessionAttendance")
+      .withIndex("by_sessionId_and_userId", (q) =>
+        q.eq("sessionId", args.sessionId).eq("userId", args.userId),
+      )
+      .take(1);
+
+    const now = Date.now();
+    if (existing[0]) {
+      await ctx.db.patch(existing[0]._id, {
+        status: args.status,
+        notes: args.notes,
+        markedBy: actor._id,
+        markedAt: now,
+      });
+      return { attendanceId: existing[0]._id, updated: true };
+    }
+
+    const attendanceId = await ctx.db.insert("sessionAttendance", {
+      sessionId: args.sessionId,
+      userId: args.userId,
+      status: args.status,
+      notes: args.notes,
+      markedBy: actor._id,
+      markedAt: now,
+    });
+
+    return { attendanceId, updated: false };
+  },
+});
+
+export const listMentorAssignments = internalQuery({
+  args: {
+    mentorId: v.optional(v.id("users")),
+    beneficiaryUserId: v.optional(v.id("users")),
+    isActive: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? DEFAULT_LIMIT;
+    let assignments: Doc<"mentorAssignments">[];
+
+    if (args.mentorId && args.isActive !== undefined) {
+      assignments = await ctx.db
+        .query("mentorAssignments")
+        .withIndex("by_mentorId_and_isActive", (q) =>
+          q.eq("mentorId", args.mentorId!).eq("isActive", args.isActive!),
+        )
+        .take(limit);
+    } else if (args.beneficiaryUserId && args.isActive !== undefined) {
+      assignments = await ctx.db
+        .query("mentorAssignments")
+        .withIndex("by_beneficiaryUserId_and_isActive", (q) =>
+          q.eq("beneficiaryUserId", args.beneficiaryUserId!).eq("isActive", args.isActive!),
+        )
+        .take(limit);
+    } else if (args.mentorId) {
+      assignments = await ctx.db
+        .query("mentorAssignments")
+        .withIndex("by_mentorId", (q) => q.eq("mentorId", args.mentorId!))
+        .take(limit);
+    } else if (args.beneficiaryUserId) {
+      assignments = await ctx.db
+        .query("mentorAssignments")
+        .withIndex("by_beneficiaryUserId", (q) =>
+          q.eq("beneficiaryUserId", args.beneficiaryUserId!),
+        )
+        .take(limit);
+    } else {
+      assignments = await ctx.db.query("mentorAssignments").order("desc").take(limit);
+    }
+
+    const filtered =
+      args.isActive === undefined
+        ? assignments
+        : assignments.filter((assignment) => assignment.isActive === args.isActive);
+
+    return await Promise.all(
+      filtered.map(async (assignment) => {
+        const [mentor, beneficiary] = await Promise.all([
+          ctx.db.get(assignment.mentorId),
+          ctx.db.get(assignment.beneficiaryUserId),
+        ]);
+        return {
+          id: assignment._id,
+          mentorId: assignment.mentorId,
+          mentorName: mentor?.name ?? "Unknown",
+          mentorEmail: mentor?.email ?? "Unknown",
+          beneficiaryUserId: assignment.beneficiaryUserId,
+          beneficiaryName: beneficiary?.name ?? "Unknown",
+          beneficiaryEmail: beneficiary?.email ?? "Unknown",
+          isActive: assignment.isActive,
+          assignedAt: assignment.assignedAt,
+          endedAt: assignment.endedAt ?? null,
+        };
+      }),
+    );
+  },
+});
+
+export const endMentorAssignment = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    assignmentId: v.id("mentorAssignments"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment) throw new Error("Assignment not found.");
+
+    await ctx.db.patch(args.assignmentId, {
+      isActive: false,
+      endedAt: Date.now(),
+    });
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "end_mentor_assignment",
+      resource: "mentorAssignments",
+      resourceId: args.assignmentId,
+      details: args.reason ?? "Ended mentor assignment",
+    });
+
+    return { assignmentId: args.assignmentId };
+  },
+});
+
+export const getBeneficiaryTimeline = internalQuery({
+  args: {
+    userId: v.id("users"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      description: string;
+      timestamp: number;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    const attendance = await ctx.db
+      .query("sessionAttendance")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(100);
+    for (const record of attendance) {
+      const session = await ctx.db.get(record.sessionId);
+      events.push({
+        id: `attendance-${record._id}`,
+        type: "attendance",
+        title: `Session ${session?.sessionNumber ?? "?"}: ${record.status}`,
+        description: session?.title ?? "",
+        timestamp: record.markedAt,
+        metadata: { sessionId: record.sessionId, notes: record.notes ?? null },
+      });
+    }
+
+    const supportRequests = await ctx.db
+      .query("supportRequests")
+      .withIndex("by_beneficiaryUserId", (q) => q.eq("beneficiaryUserId", args.userId))
+      .take(100);
+    for (const request of supportRequests) {
+      events.push({
+        id: `support-${request._id}`,
+        type: "support",
+        title: `Support: ${request.title}`,
+        description: `Status: ${request.status}`,
+        timestamp: request.createdAt,
+        metadata: {
+          requestId: request._id,
+          category: request.category,
+          amountRequested: request.amountRequested ?? null,
+        },
+      });
+    }
+
+    const scores = await ctx.db
+      .query("assessmentScores")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(100);
+    for (const score of scores) {
+      const template = await ctx.db.get(score.templateId);
+      events.push({
+        id: `assessment-${score._id}`,
+        type: "assessment",
+        title: `Assessment: ${template?.shortCode ?? "?"}`,
+        description: `Score: ${score.totalScore ?? "n/a"}${score.severityBand ? ` (${score.severityBand})` : ""}`,
+        timestamp: score.scoredAt,
+        metadata: {
+          scoreId: score._id,
+          templateId: score.templateId,
+          templateName: template?.name ?? null,
+          subscaleScores: score.subscaleScores ?? null,
+        },
+      });
+    }
+
+    const education = await ctx.db
+      .query("educationRecords")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(50);
+    for (const record of education) {
+      events.push({
+        id: `education-${record._id}`,
+        type: "education",
+        title: `Education: ${record.stage.toUpperCase()}`,
+        description: record.institutionName ?? "Record added",
+        timestamp: record.createdAt,
+        metadata: {
+          educationRecordId: record._id,
+          isCurrent: record.isCurrent,
+          startYear: record.startYear ?? null,
+          endYear: record.endYear ?? null,
+        },
+      });
+    }
+
+    return events.sort((a, b) => b.timestamp - a.timestamp).slice(0, args.limit ?? 100);
+  },
+});
+
+export const getCohortAnalytics = internalQuery({
+  args: { cohortId: v.id("cohorts") },
+  handler: async (ctx, args) => {
+    const cohort = await ctx.db.get(args.cohortId);
+    if (!cohort) throw new Error("Cohort not found.");
+
+    const memberships = await ctx.db
+      .query("cohortMemberships")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(500);
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId))
+      .take(200);
+
+    let present = 0;
+    let attendanceCount = 0;
+    for (const session of sessions) {
+      const records = await ctx.db
+        .query("sessionAttendance")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", session._id))
+        .take(300);
+      attendanceCount += records.length;
+      present += records.filter((record) => record.status === "present").length;
+    }
+
+    const assignments = [];
+    for (const session of sessions) {
+      const rows = await ctx.db
+        .query("assessmentAssignments")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", session._id))
+        .take(500);
+      assignments.push(...rows);
+    }
+
+    const supportRequests = [];
+    for (const membership of memberships) {
+      const rows = await ctx.db
+        .query("supportRequests")
+        .withIndex("by_beneficiaryUserId", (q) => q.eq("beneficiaryUserId", membership.userId))
+        .take(100);
+      supportRequests.push(...rows);
+    }
+
+    return {
+      cohort: {
+        id: cohort._id,
+        name: cohort.name,
+        isActive: cohort.isActive,
+      },
+      memberCount: memberships.length,
+      activeMemberCount: memberships.filter((membership) => membership.status === "active").length,
+      sessionCount: sessions.length,
+      completedSessionCount: sessions.filter((session) => session.status === "completed").length,
+      attendanceRate: attendanceCount > 0 ? Math.round((present / attendanceCount) * 100) : 0,
+      assessmentAssignments: assignments.length,
+      assessmentCompletions: assignments.filter((assignment) => assignment.status === "completed").length,
+      supportRequestCount: supportRequests.length,
+      openSupportRequestCount: supportRequests.filter((request) =>
+        ["submitted", "under_review", "approved"].includes(request.status),
+      ).length,
+    };
+  },
+});
+
+export const getReportMetrics = internalQuery({
+  args: {
+    cohortId: v.optional(v.id("cohorts")),
+  },
+  handler: async (ctx, args) => {
+    const profiles = await ctx.db.query("beneficiaryProfiles").take(500);
+    const cohorts = await ctx.db.query("cohorts").take(200);
+    const sessions = args.cohortId
+      ? await ctx.db
+          .query("sessions")
+          .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId!))
+          .take(500)
+      : await ctx.db.query("sessions").take(500);
+    const attendance = await ctx.db.query("sessionAttendance").take(2000);
+    const scores = await ctx.db.query("assessmentScores").take(2000);
+    const disbursements = await ctx.db.query("disbursements").take(1000);
+    const supportRequests = await ctx.db.query("supportRequests").take(1000);
+
+    const lifecycleDistribution: Record<string, number> = {};
+    for (const profile of profiles) {
+      lifecycleDistribution[profile.lifecycleStatus] =
+        (lifecycleDistribution[profile.lifecycleStatus] ?? 0) + 1;
+    }
+
+    const sessionStatusBreakdown: Record<string, number> = {};
+    for (const session of sessions) {
+      sessionStatusBreakdown[session.status] = (sessionStatusBreakdown[session.status] ?? 0) + 1;
+    }
+
+    const flagged = scores.filter(
+      (score) => score.flagBehavior === "mentor_notify" || score.flagBehavior === "admin_review",
+    );
+
+    const totalDisbursed = disbursements.reduce((sum, row) => sum + row.amount, 0);
+    const presentCount = attendance.filter((row) => row.status === "present").length;
+
+    return {
+      overview: {
+        totalBeneficiaries: profiles.length,
+        activeBeneficiaries: profiles.filter((profile) => profile.lifecycleStatus === "active").length,
+        totalCohorts: cohorts.length,
+        activeCohorts: cohorts.filter((cohort) => cohort.isActive).length,
+        sessionsDelivered: sessions.filter((session) => session.status === "completed").length,
+        overallAttendanceRate:
+          attendance.length > 0 ? Math.round((presentCount / attendance.length) * 100) : 0,
+        totalDisbursed,
+        assessmentsCompleted: scores.length,
+        flaggedAssessments: flagged.length,
+        openSupportRequests: supportRequests.filter((request) =>
+          ["submitted", "under_review", "approved"].includes(request.status),
+        ).length,
+      },
+      lifecycleDistribution,
+      sessionStatusBreakdown,
+    };
+  },
+});
+
+export const exportReport = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    reportType: v.union(
+      v.literal("beneficiary"),
+      v.literal("cohort"),
+      v.literal("financial"),
+    ),
+    userId: v.optional(v.id("users")),
+    cohortId: v.optional(v.id("cohorts")),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+
+    if (args.reportType === "beneficiary") {
+      if (!args.userId) throw new Error("userId is required for beneficiary reports.");
+      const user = await ctx.db.get(args.userId);
+      if (!user) throw new Error("User not found.");
+      const profile = await ctx.db
+        .query("beneficiaryProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .unique();
+      const education = await ctx.db
+        .query("educationRecords")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .take(50);
+      const attendance = await ctx.db
+        .query("sessionAttendance")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .take(200);
+      const scores = await ctx.db
+        .query("assessmentScores")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .take(100);
+
+      await logAuditEvent(ctx, {
+        userId: actor._id,
+        action: "export_beneficiary_report",
+        resource: "users",
+        resourceId: args.userId,
+        details: `Exported report for ${user.name}`,
+      });
+
+      return {
+        type: "beneficiary_report",
+        generatedAt: Date.now(),
+        beneficiary: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          lifecycleStatus: profile?.lifecycleStatus ?? null,
+          profileCompletionPercent: profile?.profileCompletionPercent ?? null,
+        },
+        education,
+        attendanceSummary: {
+          total: attendance.length,
+          present: attendance.filter((row) => row.status === "present").length,
+        },
+        assessments: await Promise.all(
+          scores.map(async (score) => {
+            const template = await ctx.db.get(score.templateId);
+            return {
+              scoreId: score._id,
+              code: template?.shortCode ?? "?",
+              name: template?.name ?? "Unknown",
+              totalScore: score.totalScore ?? null,
+              severityBand: score.severityBand ?? null,
+              scoredAt: score.scoredAt,
+            };
+          }),
+        ),
+      };
+    }
+
+    if (args.reportType === "cohort") {
+      if (!args.cohortId) throw new Error("cohortId is required for cohort reports.");
+      const cohort = await ctx.db.get(args.cohortId);
+      if (!cohort) throw new Error("Cohort not found.");
+      const memberships = await ctx.db
+        .query("cohortMemberships")
+        .withIndex("by_cohortId", (q) => q.eq("cohortId", args.cohortId!))
+        .take(500);
+
+      await logAuditEvent(ctx, {
+        userId: actor._id,
+        action: "export_cohort_report",
+        resource: "cohorts",
+        resourceId: args.cohortId,
+        details: `Exported report for cohort "${cohort.name}"`,
+      });
+
+      return {
+        type: "cohort_report",
+        generatedAt: Date.now(),
+        cohort: {
+          id: cohort._id,
+          name: cohort.name,
+          description: cohort.description ?? null,
+        },
+        members: await Promise.all(
+          memberships.map(async (membership) => {
+            const user = await ctx.db.get(membership.userId);
+            return {
+              userId: membership.userId,
+              name: user?.name ?? "Unknown",
+              email: user?.email ?? "Unknown",
+              membershipStatus: membership.status,
+              joinedAt: membership.joinedAt,
+            };
+          }),
+        ),
+      };
+    }
+
+    const disbursements = await ctx.db.query("disbursements").take(1000);
+    const totalAmount = disbursements.reduce((sum, row) => sum + row.amount, 0);
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "export_financial_report",
+      resource: "disbursements",
+      details: `Exported financial report with ${disbursements.length} disbursements`,
+    });
+    return {
+      type: "financial_report",
+      generatedAt: Date.now(),
+      summary: {
+        totalDisbursements: disbursements.length,
+        totalAmount,
+      },
+      disbursements: await Promise.all(
+        disbursements.map(async (disbursement) => {
+          const request = await ctx.db.get(disbursement.requestId);
+          const beneficiary = request ? await ctx.db.get(request.beneficiaryUserId) : null;
+          return {
+            disbursementId: disbursement._id,
+            beneficiaryName: beneficiary?.name ?? "Unknown",
+            category: request?.category ?? null,
+            amount: disbursement.amount,
+            transferDate: disbursement.transferDate ?? null,
+            evidenceStatus: disbursement.evidenceStatus,
+            createdAt: disbursement.createdAt,
+          };
+        }),
+      ),
+    };
+  },
+});
+
+export const listLibraryResources = internalQuery({
+  args: {
+    visibility: v.optional(materialVisibilityValidator),
+    pillar: v.optional(v.string()),
+    sessionId: v.optional(v.id("sessions")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 200;
+    let materials: Doc<"materials">[];
+
+    if (args.sessionId) {
+      materials = await ctx.db
+        .query("materials")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId!))
+        .take(limit);
+    } else if (args.pillar) {
+      materials = await ctx.db
+        .query("materials")
+        .withIndex("by_pillar", (q) => q.eq("pillar", args.pillar!))
+        .take(limit);
+    } else if (args.visibility) {
+      materials = await ctx.db
+        .query("materials")
+        .withIndex("by_visibility", (q) => q.eq("visibility", args.visibility!))
+        .take(limit);
+    } else {
+      materials = await ctx.db.query("materials").take(limit);
+    }
+
+    return await Promise.all(
+      materials.map(async (material) => {
+        const [category, access] = await Promise.all([
+          material.categoryId ? ctx.db.get(material.categoryId) : Promise.resolve(null),
+          ctx.db
+            .query("resourceAccess")
+            .withIndex("by_materialId", (q) => q.eq("materialId", material._id))
+            .take(200),
+        ]);
+        return {
+          id: material._id,
+          title: material.title,
+          description: material.description ?? null,
+          type: material.type,
+          url: material.url ?? null,
+          pillar: material.pillar ?? null,
+          sessionId: material.sessionId ?? null,
+          categoryId: material.categoryId ?? null,
+          categoryName: category?.name ?? null,
+          visibility: material.visibility ?? "public",
+          isRequired: material.isRequired,
+          accessGrantCount: access.length,
+          createdAt: material.createdAt,
+          updatedAt: material.updatedAt,
+        };
+      }),
+    );
+  },
+});
+
+export const grantLibraryAccess = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    materialId: v.id("materials"),
+    targetType: v.union(v.literal("cohort"), v.literal("user")),
+    cohortId: v.optional(v.id("cohorts")),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const material = await ctx.db.get(args.materialId);
+    if (!material) throw new Error("Material not found.");
+
+    const existing = await ctx.db
+      .query("resourceAccess")
+      .withIndex("by_materialId_and_targetType", (q) =>
+        q.eq("materialId", args.materialId).eq("targetType", args.targetType),
+      )
+      .take(300);
+
+    if (args.targetType === "cohort") {
+      if (!args.cohortId) throw new Error("cohortId is required for cohort access.");
+      if (existing.some((grant) => grant.cohortId === args.cohortId)) {
+        throw new Error("Access already granted to this cohort.");
+      }
+    } else {
+      if (!args.userId) throw new Error("userId is required for user access.");
+      if (existing.some((grant) => grant.userId === args.userId)) {
+        throw new Error("Access already granted to this user.");
+      }
+    }
+
+    const accessId = await ctx.db.insert("resourceAccess", {
+      materialId: args.materialId,
+      targetType: args.targetType,
+      cohortId: args.cohortId,
+      userId: args.userId,
+      grantedBy: actor._id,
+      grantedAt: Date.now(),
+    });
+
+    return { accessId };
+  },
+});
+
+export const revokeLibraryAccess = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    accessId: v.id("resourceAccess"),
+  },
+  handler: async (ctx, args) => {
+    await requireActor(ctx, args.actorEmail);
+    const grant = await ctx.db.get(args.accessId);
+    if (!grant) throw new Error("Access grant not found.");
+    await ctx.db.delete(args.accessId);
+    return { accessId: args.accessId };
+  },
+});
+
+export const listNotificationDeliveries = internalQuery({
+  args: {
+    status: v.optional(notificationDeliveryStatusValidator),
+    userId: v.optional(v.id("users")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 200;
+    let deliveries: Doc<"notificationDeliveries">[];
+
+    if (args.userId) {
+      deliveries = await ctx.db
+        .query("notificationDeliveries")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId!))
+        .take(limit);
+    } else if (args.status) {
+      deliveries = await ctx.db
+        .query("notificationDeliveries")
+        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .take(limit);
+    } else {
+      deliveries = await ctx.db.query("notificationDeliveries").order("desc").take(limit);
+    }
+
+    return await Promise.all(
+      deliveries.map(async (delivery) => {
+        const [user, notification] = await Promise.all([
+          ctx.db.get(delivery.userId),
+          ctx.db.get(delivery.notificationId),
+        ]);
+        return {
+          id: delivery._id,
+          notificationId: delivery.notificationId,
+          userId: delivery.userId,
+          userName: user?.name ?? "Unknown",
+          userEmail: user?.email ?? "Unknown",
+          channel: delivery.channel,
+          status: delivery.status,
+          eventKey: delivery.eventKey,
+          attemptCount: delivery.attemptCount,
+          lastAttemptAt: delivery.lastAttemptAt ?? null,
+          errorMessage: delivery.errorMessage ?? null,
+          title: notification?.title ?? null,
+          createdAt: delivery.createdAt,
+        };
+      }),
+    );
+  },
+});
+
+export const sendNotification = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    targetType: v.union(v.literal("user"), v.literal("role"), v.literal("cohort")),
+    userId: v.optional(v.id("users")),
+    role: v.optional(v.string()),
+    cohortId: v.optional(v.id("cohorts")),
+    type: v.string(),
+    title: v.string(),
+    body: v.string(),
+    linkUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    let userIds: Id<"users">[] = [];
+
+    if (args.targetType === "user") {
+      if (!args.userId) throw new Error("userId is required for user notifications.");
+      userIds = [args.userId];
+    } else if (args.targetType === "role") {
+      if (!args.role) throw new Error("role is required for role notifications.");
+      const users = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", args.role as Doc<"users">["role"]))
+        .take(500);
+      userIds = users.filter((user) => user.isActive).map((user) => user._id);
+    } else {
+      if (!args.cohortId) throw new Error("cohortId is required for cohort notifications.");
+      const memberships = await ctx.db
+        .query("cohortMemberships")
+        .withIndex("by_cohortId_and_status", (q) =>
+          q.eq("cohortId", args.cohortId!).eq("status", "active"),
+        )
+        .take(500);
+      userIds = memberships.map((membership) => membership.userId);
+    }
+
+    const notificationIds = [];
+    const now = Date.now();
+    for (const userId of userIds) {
+      const notificationId = await createNotification(ctx, {
+        userId,
+        type: args.type,
+        title: args.title,
+        body: args.body,
+        eventKey: `mcp:${args.type}:${now}:${userId}`,
+        linkUrl: args.linkUrl,
+      });
+      notificationIds.push(notificationId);
+    }
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "send_notification",
+      resource: "notifications",
+      details: `Sent "${args.title}" to ${notificationIds.length} recipient(s)`,
+    });
+
+    return { count: notificationIds.length, notificationIds };
+  },
+});
+
+export const retryFailedDelivery = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    deliveryId: v.id("notificationDeliveries"),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const delivery = await ctx.db.get(args.deliveryId);
+    if (!delivery) throw new Error("Delivery not found.");
+    if (delivery.status !== "failed") {
+      throw new Error("Only failed deliveries can be retried.");
+    }
+
+    await ctx.db.patch(args.deliveryId, {
+      status: "pending",
+      attemptCount: delivery.attemptCount + 1,
+      lastAttemptAt: Date.now(),
+      errorMessage: undefined,
+    });
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "retry_failed_delivery",
+      resource: "notificationDeliveries",
+      resourceId: args.deliveryId,
+      details: `Marked delivery ${args.deliveryId} pending for retry`,
+    });
+
+    return { deliveryId: args.deliveryId, status: "pending" };
+  },
+});
+
+export const createAssessmentTemplate = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    name: v.string(),
+    code: v.string(),
+    description: v.optional(v.string()),
+    sourceCitation: v.optional(v.string()),
+    licenseNotes: v.optional(v.string()),
+    adaptationNotes: v.optional(v.string()),
+    pillar: v.optional(v.string()),
+    sessionNumber: v.optional(v.number()),
+    items: v.array(assessmentItemValidator),
+    subscales: v.optional(v.array(assessmentSubscaleValidator)),
+    severityBands: v.optional(v.array(assessmentSeverityBandValidator)),
+    totalScoreRange: v.optional(v.object({ min: v.number(), max: v.number() })),
+    scoringMethod: v.optional(v.union(v.literal("sum"), v.literal("average"), v.literal("mean"))),
+    subscaleOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const existing = await ctx.db
+      .query("assessmentTemplates")
+      .withIndex("by_shortCode", (q) => q.eq("shortCode", args.code))
+      .take(100);
+    const maxVersion = existing.reduce((max, template) => Math.max(max, template.version), 0);
+
+    const templateId = await ctx.db.insert("assessmentTemplates", {
+      name: args.name,
+      shortCode: args.code,
+      version: maxVersion + 1,
+      status: "draft",
+      description: args.description,
+      sourceCitation: args.sourceCitation,
+      licenseNotes: args.licenseNotes,
+      adaptationNotes: args.adaptationNotes,
+      pillar: args.pillar,
+      sessionNumber: args.sessionNumber,
+      items: args.items,
+      subscales: args.subscales,
+      severityBands: args.severityBands,
+      totalScoreRange: args.totalScoreRange,
+      scoringMethod: args.scoringMethod,
+      subscaleOnly: args.subscaleOnly,
+      createdBy: actor._id,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "create_assessment_template",
+      resource: "assessmentTemplates",
+      resourceId: templateId,
+      details: `Created draft assessment template ${args.code}`,
+    });
+
+    return { templateId };
+  },
+});
+
+export const publishAssessmentTemplate = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    templateId: v.id("assessmentTemplates"),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const template = await ctx.db.get(args.templateId);
+    if (!template) throw new Error("Template not found.");
+    if (template.status !== "draft") throw new Error("Only draft templates can be published.");
+    if (template.items.length === 0) throw new Error("Cannot publish a template with no items.");
+
+    await ctx.db.patch(args.templateId, {
+      status: "published",
+      updatedAt: Date.now(),
+    });
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "publish_assessment_template",
+      resource: "assessmentTemplates",
+      resourceId: args.templateId,
+      details: `Published assessment template ${template.shortCode}`,
+    });
+
+    return { templateId: args.templateId };
+  },
+});
+
+export const archiveAssessmentTemplate = internalMutation({
+  args: {
+    actorEmail: v.string(),
+    templateId: v.id("assessmentTemplates"),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireActor(ctx, args.actorEmail);
+    const template = await ctx.db.get(args.templateId);
+    if (!template) throw new Error("Template not found.");
+    if (template.status === "archived") throw new Error("Template is already archived.");
+
+    await ctx.db.patch(args.templateId, {
+      status: "archived",
+      updatedAt: Date.now(),
+    });
+    await logAuditEvent(ctx, {
+      userId: actor._id,
+      action: "archive_assessment_template",
+      resource: "assessmentTemplates",
+      resourceId: args.templateId,
+      details: `Archived assessment template ${template.shortCode}`,
+    });
+
+    return { templateId: args.templateId };
   },
 });
 

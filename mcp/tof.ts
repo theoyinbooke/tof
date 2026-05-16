@@ -15,6 +15,12 @@ import {
   SUPPORT_CATEGORIES,
   SAFEGUARDING_STATUSES,
   OPERATIONAL_EXPENSE_CATEGORIES,
+  ATTENDANCE_STATUSES,
+  ASSIGNMENT_STATUSES,
+  LIFECYCLE_STATUSES,
+  DOCUMENT_CATEGORIES,
+  MATERIAL_VISIBILITIES,
+  NOTIFICATION_DELIVERY_STATUSES,
 } from "./constants";
 
 const DEFAULT_VERSION = "0.1.0";
@@ -63,6 +69,33 @@ const supportCategoryEnum = z.enum(SUPPORT_CATEGORIES);
 const safeguardingStatusEnum = z.enum(SAFEGUARDING_STATUSES);
 const messageTypeEnum = z.enum(["text", "link", "video_link"]);
 const operationalExpenseCategoryEnum = z.enum(OPERATIONAL_EXPENSE_CATEGORIES);
+const attendanceStatusEnum = z.enum(ATTENDANCE_STATUSES);
+const assignmentStatusEnum = z.enum(ASSIGNMENT_STATUSES);
+const lifecycleStatusEnum = z.enum(LIFECYCLE_STATUSES);
+const documentCategoryEnum = z.enum(DOCUMENT_CATEGORIES);
+const materialVisibilityEnum = z.enum(MATERIAL_VISIBILITIES);
+const notificationDeliveryStatusEnum = z.enum(NOTIFICATION_DELIVERY_STATUSES);
+
+const assessmentItemSchema = z.object({
+  itemNumber: z.number(),
+  text: z.string(),
+  subscale: z.string().optional(),
+  isReversed: z.boolean(),
+  responseOptions: z.array(z.object({ label: z.string(), value: z.number() })),
+});
+
+const assessmentSubscaleSchema = z.object({
+  name: z.string(),
+  itemNumbers: z.array(z.number()),
+  scoringMethod: z.enum(["sum", "average"]).optional(),
+});
+
+const assessmentSeverityBandSchema = z.object({
+  label: z.string(),
+  min: z.number(),
+  max: z.number(),
+  flagBehavior: z.enum(["none", "mentor_notify", "admin_review"]).optional(),
+});
 
 // ---------------------------------------------------------------------------
 // Environment helpers
@@ -528,6 +561,343 @@ function registerReadTools(server: McpServer) {
     },
   );
 
+  // list_assessment_templates
+  server.registerTool(
+    "list_assessment_templates",
+    {
+      description:
+        "List assessment templates with their Convex ID, display name, short code, and item count. Use this to find template IDs before assigning assessments.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {},
+    },
+    async () => {
+      const client = createClient();
+      const templates = await client.query(
+        internal.mcp.listAssessmentTemplates,
+        {},
+      );
+
+      return jsonResult({ templates });
+    },
+  );
+
+  server.registerTool(
+    "get_assessment_template",
+    {
+      description:
+        "Get full assessment template details by Convex template ID or short code, including items, scoring metadata, subscales, severity bands, status, and version.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        templateId: z.string().optional().describe("The Convex assessment template ID"),
+        code: z.string().optional().describe("The assessment short code, for example GAD-7"),
+      },
+    },
+    async ({ templateId, code }) => {
+      const client = createClient();
+      const template = await client.query(internal.mcp.getAssessmentTemplate, {
+        templateId: templateId as never,
+        code,
+      });
+      return jsonResult({
+        template: template
+          ? {
+              ...template,
+              createdAt: toIso(template.createdAt),
+              updatedAt: toIso(template.updatedAt),
+            }
+          : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_assessment_assignments",
+    {
+      description:
+        "List assessment assignments filtered by user, session, template, and/or assignment status. Includes user, template, session, and score summary.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        userId: z.string().optional().describe("Filter by Convex user ID"),
+        sessionId: z.string().optional().describe("Filter by Convex session ID"),
+        templateId: z.string().optional().describe("Filter by Convex assessment template ID"),
+        status: assignmentStatusEnum.optional().describe("Filter by assignment status"),
+        limit: z.number().int().min(1).max(300).default(50),
+      },
+    },
+    async ({ userId, sessionId, templateId, status, limit }) => {
+      const client = createClient();
+      const assignments = await client.query(internal.mcp.listAssessmentAssignments, {
+        userId: userId as never,
+        sessionId: sessionId as never,
+        templateId: templateId as never,
+        status,
+        limit,
+      });
+      return jsonResult({
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          dueDate: toIso(assignment.dueDate),
+          createdAt: toIso(assignment.createdAt),
+          updatedAt: toIso(assignment.updatedAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_assessment_result",
+    {
+      description:
+        "Get a scored assessment result by score ID or assignment ID. Includes score, template, user, raw answers, assignment, and safeguarding action.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        scoreId: z.string().optional().describe("The Convex assessment score ID"),
+        assignmentId: z.string().optional().describe("The Convex assessment assignment ID"),
+      },
+    },
+    async ({ scoreId, assignmentId }) => {
+      const client = createClient();
+      const result = await client.query(internal.mcp.getAssessmentResult, {
+        scoreId: scoreId as never,
+        assignmentId: assignmentId as never,
+      });
+      return jsonResult({ result });
+    },
+  );
+
+  server.registerTool(
+    "list_beneficiary_documents",
+    {
+      description:
+        "List documents uploaded for a beneficiary, optionally filtered by category. Can include storage download URLs.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        userId: z.string().describe("The beneficiary user ID"),
+        category: documentCategoryEnum.optional().describe("Filter by document category"),
+        includeUrls: z.boolean().default(false).describe("Include signed Convex storage URLs"),
+      },
+    },
+    async ({ userId, category, includeUrls }) => {
+      const client = createClient();
+      const documents = await client.query(internal.mcp.listBeneficiaryDocuments, {
+        userId: userId as never,
+        category,
+        includeUrls,
+      });
+      return jsonResult({
+        documents: documents.map((doc) => ({
+          ...doc,
+          createdAt: toIso(doc.createdAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_education_records",
+    {
+      description:
+        "List a beneficiary's education journey records, including stage, school, course, dates, and current status.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        userId: z.string().describe("The beneficiary user ID"),
+      },
+    },
+    async ({ userId }) => {
+      const client = createClient();
+      const records = await client.query(internal.mcp.listEducationRecords, {
+        userId: userId as never,
+      });
+      return jsonResult({
+        records: records.map((record) => ({
+          ...record,
+          createdAt: toIso(record.createdAt),
+          updatedAt: toIso(record.updatedAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_session_attendance",
+    {
+      description:
+        "List enrolled users and attendance state for a session.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        sessionId: z.string().describe("The Convex session ID"),
+      },
+    },
+    async ({ sessionId }) => {
+      const client = createClient();
+      const attendance = await client.query(internal.mcp.listSessionAttendance, {
+        sessionId: sessionId as never,
+      });
+      return jsonResult({
+        attendance: attendance.map((row) => ({
+          ...row,
+          enrolledAt: toIso(row.enrolledAt),
+          markedAt: toIso(row.markedAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_mentor_assignments",
+    {
+      description:
+        "List mentor assignments filtered by mentor, beneficiary, and/or active state.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        mentorId: z.string().optional().describe("Filter by mentor user ID"),
+        beneficiaryUserId: z.string().optional().describe("Filter by beneficiary user ID"),
+        isActive: z.boolean().optional().describe("Filter by active assignment state"),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+    },
+    async ({ mentorId, beneficiaryUserId, isActive, limit }) => {
+      const client = createClient();
+      const assignments = await client.query(internal.mcp.listMentorAssignments, {
+        mentorId: mentorId as never,
+        beneficiaryUserId: beneficiaryUserId as never,
+        isActive,
+        limit,
+      });
+      return jsonResult({
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          assignedAt: toIso(assignment.assignedAt),
+          endedAt: toIso(assignment.endedAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_beneficiary_timeline",
+    {
+      description:
+        "Return a cross-domain beneficiary timeline containing attendance, support, assessment, and education events.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        userId: z.string().describe("The beneficiary user ID"),
+        limit: z.number().int().min(1).max(200).default(100),
+      },
+    },
+    async ({ userId, limit }) => {
+      const client = createClient();
+      const events = await client.query(internal.mcp.getBeneficiaryTimeline, {
+        userId: userId as never,
+        limit,
+      });
+      return jsonResult({
+        events: events.map((event) => ({
+          ...event,
+          timestamp: toIso(event.timestamp),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_cohort_analytics",
+    {
+      description:
+        "Return cohort-level analytics: member counts, sessions, attendance rate, assessment completion, and support request counts.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        cohortId: z.string().describe("The Convex cohort ID"),
+      },
+    },
+    async ({ cohortId }) => {
+      const client = createClient();
+      const analytics = await client.query(internal.mcp.getCohortAnalytics, {
+        cohortId: cohortId as never,
+      });
+      return jsonResult(analytics);
+    },
+  );
+
+  server.registerTool(
+    "get_report_metrics",
+    {
+      description:
+        "Return high-level report metrics for beneficiaries, cohorts, sessions, attendance, assessments, support requests, and finances.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        cohortId: z.string().optional().describe("Optionally scope session metrics to one cohort"),
+      },
+    },
+    async ({ cohortId }) => {
+      const client = createClient();
+      const metrics = await client.query(internal.mcp.getReportMetrics, {
+        cohortId: cohortId as never,
+      });
+      return jsonResult(metrics);
+    },
+  );
+
+  server.registerTool(
+    "list_library_resources",
+    {
+      description:
+        "List learning library resources, optionally filtered by visibility, pillar, or session.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        visibility: materialVisibilityEnum.optional().describe("Filter by material visibility"),
+        pillar: z.string().optional().describe("Filter by pillar"),
+        sessionId: z.string().optional().describe("Filter by session ID"),
+        limit: z.number().int().min(1).max(500).default(200),
+      },
+    },
+    async ({ visibility, pillar, sessionId, limit }) => {
+      const client = createClient();
+      const resources = await client.query(internal.mcp.listLibraryResources, {
+        visibility,
+        pillar,
+        sessionId: sessionId as never,
+        limit,
+      });
+      return jsonResult({
+        resources: resources.map((resource) => ({
+          ...resource,
+          createdAt: toIso(resource.createdAt),
+          updatedAt: toIso(resource.updatedAt),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_notification_deliveries",
+    {
+      description:
+        "List notification delivery records, optionally filtered by status or user.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        status: notificationDeliveryStatusEnum.optional().describe("Filter by delivery status"),
+        userId: z.string().optional().describe("Filter by user ID"),
+        limit: z.number().int().min(1).max(500).default(200),
+      },
+    },
+    async ({ status, userId, limit }) => {
+      const client = createClient();
+      const deliveries = await client.query(internal.mcp.listNotificationDeliveries, {
+        status,
+        userId: userId as never,
+        limit,
+      });
+      return jsonResult({
+        deliveries: deliveries.map((delivery) => ({
+          ...delivery,
+          lastAttemptAt: toIso(delivery.lastAttemptAt),
+          createdAt: toIso(delivery.createdAt),
+        })),
+      });
+    },
+  );
+
   // 11. list_flagged_assessments
   server.registerTool(
     "list_flagged_assessments",
@@ -694,6 +1064,295 @@ function registerReadTools(server: McpServer) {
 }
 
 function registerWriteTools(server: McpServer) {
+  server.registerTool(
+    "update_beneficiary_profile",
+    {
+      description:
+        "Update a beneficiary profile as the MCP admin actor. Supports personal info, family context, lifecycle status, and admin notes.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        userId: z.string().describe("The beneficiary user ID"),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        stateOfOrigin: z.string().optional(),
+        lga: z.string().optional(),
+        guardianName: z.string().optional(),
+        guardianPhone: z.string().optional(),
+        guardianRelationship: z.string().optional(),
+        familySize: z.number().optional(),
+        householdIncome: z.string().optional(),
+        lifecycleStatus: lifecycleStatusEnum.optional(),
+        adminNotes: z.string().optional(),
+      },
+    },
+    async ({ userId, ...updates }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.updateBeneficiaryProfile, {
+        actorEmail,
+        userId: userId as never,
+        ...updates,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "mark_attendance",
+    {
+      description:
+        "Mark or update a user's attendance for an enrolled session.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        sessionId: z.string().describe("The session ID"),
+        userId: z.string().describe("The user ID"),
+        status: attendanceStatusEnum.describe("Attendance status"),
+        notes: z.string().optional().describe("Optional attendance note"),
+      },
+    },
+    async ({ sessionId, userId, status, notes }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.markAttendance, {
+        actorEmail,
+        sessionId: sessionId as never,
+        userId: userId as never,
+        status,
+        notes,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "end_mentor_assignment",
+    {
+      description:
+        "End an active or historical mentor assignment and audit the action.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        assignmentId: z.string().describe("The mentor assignment ID"),
+        reason: z.string().optional().describe("Optional reason for ending the assignment"),
+      },
+    },
+    async ({ assignmentId, reason }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.endMentorAssignment, {
+        actorEmail,
+        assignmentId: assignmentId as never,
+        reason,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "export_report",
+    {
+      description:
+        "Generate structured report data for a beneficiary, cohort, or financial report and audit the export.",
+      annotations: readOnlyAnnotations(),
+      inputSchema: {
+        reportType: z.enum(["beneficiary", "cohort", "financial"]),
+        userId: z.string().optional().describe("Required for beneficiary reports"),
+        cohortId: z.string().optional().describe("Required for cohort reports"),
+      },
+    },
+    async ({ reportType, userId, cohortId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const report = await client.mutation(internal.mcp.exportReport, {
+        actorEmail,
+        reportType,
+        userId: userId as never,
+        cohortId: cohortId as never,
+      });
+      return jsonResult({ actorEmail, report });
+    },
+  );
+
+  server.registerTool(
+    "grant_library_access",
+    {
+      description:
+        "Grant a restricted library resource to a specific user or cohort.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        materialId: z.string().describe("The material/resource ID"),
+        targetType: z.enum(["cohort", "user"]),
+        cohortId: z.string().optional().describe("Required when targetType is cohort"),
+        userId: z.string().optional().describe("Required when targetType is user"),
+      },
+    },
+    async ({ materialId, targetType, cohortId, userId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.grantLibraryAccess, {
+        actorEmail,
+        materialId: materialId as never,
+        targetType,
+        cohortId: cohortId as never,
+        userId: userId as never,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "revoke_library_access",
+    {
+      description: "Revoke a library resource access grant.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        accessId: z.string().describe("The resource access grant ID"),
+      },
+    },
+    async ({ accessId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.revokeLibraryAccess, {
+        actorEmail,
+        accessId: accessId as never,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "send_notification",
+    {
+      description:
+        "Send an in-app notification to one user, all active users with a role, or active members of a cohort.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        targetType: z.enum(["user", "role", "cohort"]),
+        userId: z.string().optional().describe("Required for user target"),
+        role: roleEnum.optional().describe("Required for role target"),
+        cohortId: z.string().optional().describe("Required for cohort target"),
+        type: z.string().min(1).describe("Notification type key"),
+        title: z.string().min(1),
+        body: z.string().min(1),
+        linkUrl: z.string().optional(),
+      },
+    },
+    async ({ targetType, userId, role, cohortId, type, title, body, linkUrl }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.sendNotification, {
+        actorEmail,
+        targetType,
+        userId: userId as never,
+        role,
+        cohortId: cohortId as never,
+        type,
+        title,
+        body,
+        linkUrl,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "retry_failed_delivery",
+    {
+      description:
+        "Mark a failed notification delivery as pending for retry and audit the action.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        deliveryId: z.string().describe("The notification delivery ID"),
+      },
+    },
+    async ({ deliveryId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.retryFailedDelivery, {
+        actorEmail,
+        deliveryId: deliveryId as never,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "create_assessment_template",
+    {
+      description:
+        "Create a draft assessment template. Published templates remain immutable; use publish_assessment_template after review.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        name: z.string().min(1),
+        code: z.string().min(1).describe("Assessment short code"),
+        description: z.string().optional(),
+        sourceCitation: z.string().optional(),
+        licenseNotes: z.string().optional(),
+        adaptationNotes: z.string().optional(),
+        pillar: z.string().optional(),
+        sessionNumber: z.number().optional(),
+        items: z.array(assessmentItemSchema),
+        subscales: z.array(assessmentSubscaleSchema).optional(),
+        severityBands: z.array(assessmentSeverityBandSchema).optional(),
+        totalScoreRange: z.object({ min: z.number(), max: z.number() }).optional(),
+        scoringMethod: z.enum(["sum", "average", "mean"]).optional(),
+        subscaleOnly: z.boolean().optional(),
+      },
+    },
+    async (input) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.createAssessmentTemplate, {
+        actorEmail,
+        ...input,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "publish_assessment_template",
+    {
+      description: "Publish a draft assessment template after validation.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        templateId: z.string().describe("The draft assessment template ID"),
+      },
+    },
+    async ({ templateId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.publishAssessmentTemplate, {
+        actorEmail,
+        templateId: templateId as never,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
+  server.registerTool(
+    "archive_assessment_template",
+    {
+      description: "Archive an assessment template so it is no longer assignable.",
+      annotations: destructiveAnnotations(),
+      inputSchema: {
+        templateId: z.string().describe("The assessment template ID"),
+      },
+    },
+    async ({ templateId }) => {
+      const actorEmail = requireActorEmail();
+      const client = createClient();
+      const result = await client.mutation(internal.mcp.archiveAssessmentTemplate, {
+        actorEmail,
+        templateId: templateId as never,
+      });
+      return jsonResult({ ...result, actorEmail });
+    },
+  );
+
   // 13. update_user_role
   server.registerTool(
     "update_user_role",
